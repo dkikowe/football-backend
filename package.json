@@ -1,0 +1,34 @@
+{
+  "name": "arcade-football-online-api",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.9"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node --env-file-if-exists=.env.local dist/main.js",
+    "dev": "npm run build && npm start",
+    "migrate": "node --env-file-if-exists=.env.local dist/migrate.js",
+    "test": "npm run build && node --test test/client-ip.mjs test/integration.mjs",
+    "smoke:deployed": "node scripts/deployed-api-smoke.mjs",
+    "local:init": "bash scripts/local-init.sh"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.0",
+    "@nestjs/core": "^11.1.0",
+    "@nestjs/platform-express": "^11.1.0",
+    "pg": "^8.16.0",
+    "redis": "^5.8.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.18.0",
+    "@types/pg": "^8.15.0",
+    "prettier": "^3.9.9",
+    "typescript": "^5.9.0"
+  }
+}

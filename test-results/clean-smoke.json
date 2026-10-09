@@ -1,0 +1,67 @@
+{
+  "startedUtc": "2026-10-09T13:10:06.908Z",
+  "serverId": "smoke-3170bc6c-89c",
+  "checks": [
+    {
+      "name": "dedicated registered and allocated",
+      "passed": true
+    },
+    {
+      "name": "exactly six slots: 2 humans + 4 bots",
+      "passed": true
+    },
+    {
+      "name": "both clients receive authoritative snapshots",
+      "passed": true
+    },
+    {
+      "name": "backend allows same-account reconnect",
+      "passed": true
+    },
+    {
+      "name": "replacement client receives current authoritative snapshot",
+      "passed": true
+    },
+    {
+      "name": "dedicated commits trusted final result",
+      "passed": true
+    },
+    {
+      "name": "both accounts agree final score",
+      "passed": true
+    },
+    {
+      "name": "time-aligned authoritative ball and score snapshots agree",
+      "passed": true
+    },
+    {
+      "name": "server logged bot takeover",
+      "passed": true
+    },
+    {
+      "name": "server confirms original slot reconnect",
+      "passed": true
+    },
+    {
+      "name": "no runtime exception markers",
+      "passed": true
+    }
+  ],
+  "artifacts": ".local/multiplayer-smoke-hfjuxd",
+  "result": {
+    "matchId": "6b3a3636-902e-4086-891c-df1987d75bc7",
+    "blueScore": 2,
+    "redScore": 1,
+    "participants": 6
+  },
+  "network": {
+    "comparedSnapshotPairs": 12,
+    "maxBallDifference": 0.338,
+    "redSnapshotCount": 62,
+    "redMeanRttMs": 17,
+    "redMaxObservedLossPercent": 0,
+    "impaired": false
+  },
+  "passed": true,
+  "finishedUtc": "2026-10-09T13:11:24.673Z"
+}

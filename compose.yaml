@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: football
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Generate POSTGRES_PASSWORD in .env.local}
+      POSTGRES_DB: football_online
+    volumes:
+      - postgres:/var/lib/postgresql
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U football -d football_online']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+  redis:
+    image: redis:8-alpine
+    command: [redis-server, --appendonly, 'yes', --appendfsync, everysec]
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+  api:
+    build: .
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3000
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://127.0.0.1:3000}
+      DATABASE_URL: postgresql://football:${POSTGRES_PASSWORD}@postgres:5432/football_online
+      REDIS_URL: redis://redis:6379
+      REDIS_PREFIX: football:compose:
+      GAME_SERVER_SECRET: ${GAME_SERVER_SECRET:?Generate GAME_SERVER_SECRET in .env.local}
+      BOT_FILL_SECONDS: ${BOT_FILL_SECONDS:-12}
+      QUEUE_TIMEOUT_SECONDS: ${QUEUE_TIMEOUT_SECONDS:-60}
+      RECONNECT_SECONDS: 90
+    ports:
+      - '127.0.0.1:${PORT:-3000}:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 15s
+volumes:
+  postgres:
+  redis:

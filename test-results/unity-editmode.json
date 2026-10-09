@@ -1,0 +1,391 @@
+{
+  "status": "completed",
+  "duration": 1.11,
+  "summary": {
+    "total": 54,
+    "passed": 54,
+    "failed": 0,
+    "skipped": 0,
+    "inconclusive": 0
+  },
+  "results": [
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineActionHistoryTests.DifferentHistoricalOwnerOrFreeBallNeverGrantsEligibility",
+      "Status": "Passed",
+      "Duration": 0.0313788,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineActionHistoryTests.EligiblePastContactUsesServerSampleWithoutMutatingPresentState",
+      "Status": "Passed",
+      "Duration": 0.0088021,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineActionHistoryTests.HistoricalFacingAndDistanceBothMatter",
+      "Status": "Passed",
+      "Duration": 0.0009688,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineActionHistoryTests.HistoryExpiresAndNeverGrowsBeyondCapacity",
+      "Status": "Passed",
+      "Duration": 0.00429,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineActionHistoryTests.InvalidQueriesDoNotGrantEligibility",
+      "Status": "Passed",
+      "Duration": 0.0002308,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineActionHistoryTests.InvalidRecordsAndBackwardTimeDoNotPoisonHistory",
+      "Status": "Passed",
+      "Duration": 0.000297,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineActionHistoryTests.PosesAreCopiedAndSlotsDoNotDependOnArrayOrder",
+      "Status": "Passed",
+      "Duration": 0.0005917,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineActionHistoryTests.RewindIsCappedAt150MillisecondsEvenForVeryHighMeasuredRtt",
+      "Status": "Passed",
+      "Duration": 0.0001507,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineActionHistoryTests.SampleAfterRequestedTimeCannotGrantAHit",
+      "Status": "Passed",
+      "Duration": 0.0002378,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineMenuContractsTests.AccountAbsentFromRosterIsRejected",
+      "Status": "Passed",
+      "Duration": 0.0064891,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineMenuContractsTests.BackendAllocationJsonSupportsLocalPlayerOnRedTeam",
+      "Status": "Passed",
+      "Duration": 0.0031179,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineMenuContractsTests.DuplicateAccountCannotJoinTwoActors",
+      "Status": "Passed",
+      "Duration": 0.0001735,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineMenuContractsTests.DuplicateSlotCannotReachPreviewOrConnect",
+      "Status": "Passed",
+      "Duration": 0.0004011,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineMenuContractsTests.GuestCredentialsOnlyUseHttpsOrLoopback(\"https://api.example.com\",True)",
+      "Status": "Passed",
+      "Duration": 0.0071855,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineMenuContractsTests.GuestCredentialsOnlyUseHttpsOrLoopback(\"http://127.0.0.1:3000\",True)",
+      "Status": "Passed",
+      "Duration": 0.0006573,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineMenuContractsTests.GuestCredentialsOnlyUseHttpsOrLoopback(\"http://localhost:3000\",True)",
+      "Status": "Passed",
+      "Duration": 0.000586,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineMenuContractsTests.GuestCredentialsOnlyUseHttpsOrLoopback(\"http://api.example.com\",False)",
+      "Status": "Passed",
+      "Duration": 0.0002863,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineMenuContractsTests.GuestCredentialsOnlyUseHttpsOrLoopback(\"https://guest:secret@api.example.com\",False)",
+      "Status": "Passed",
+      "Duration": 0.0003689,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineMenuContractsTests.GuestCredentialsOnlyUseHttpsOrLoopback(\"https://api.example.com?token=secret\",False)",
+      "Status": "Passed",
+      "Duration": 0.0004247,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineMenuContractsTests.GuestCredentialsOnlyUseHttpsOrLoopback(\"file:///tmp/server\",False)",
+      "Status": "Passed",
+      "Duration": 0.0001707,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineMenuContractsTests.SearchResponseCannotBeMistakenForReadyMatch",
+      "Status": "Passed",
+      "Duration": 0.0005913,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.ActionIdsWrapWithZeroReserved",
+      "Status": "Passed",
+      "Duration": 0.0141504,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.DuplicateActionIdNeverFiresTwice_ButFreshMovementIsRetained",
+      "Status": "Passed",
+      "Duration": 0.0012993,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.DuplicateAndOldSequencesAreRejectedWithoutChangingLatestMovement",
+      "Status": "Passed",
+      "Duration": 0.0021014,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.FreshMovementIsAccepted_AndClientTimestampDoesNotSetServerClock",
+      "Status": "Passed",
+      "Duration": 0.0008659,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.FutureSequenceJumpIsRejected_AndNextRealFrameStillWorks",
+      "Status": "Passed",
+      "Duration": 0.0005304,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.InputJsonRoundTripsAndCannotCarryAuthoritativeGoalOrPosition",
+      "Status": "Passed",
+      "Duration": 0.0069965,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.InvalidFramesAlsoConsumeRateBudget",
+      "Status": "Passed",
+      "Duration": 0.0003638,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.InvalidJsonIsRejectedWithoutThrowing(\"\")",
+      "Status": "Passed",
+      "Duration": 0.0004956,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.InvalidJsonIsRejectedWithoutThrowing(\"[]\")",
+      "Status": "Passed",
+      "Duration": 0.0001244,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.InvalidJsonIsRejectedWithoutThrowing(\"null\")",
+      "Status": "Passed",
+      "Duration": 0.0003426,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.InvalidJsonIsRejectedWithoutThrowing(\"not json\")",
+      "Status": "Passed",
+      "Duration": 8.55E-05,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.InvalidJsonIsRejectedWithoutThrowing(\"{bad}\")",
+      "Status": "Passed",
+      "Duration": 0.0005186,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.LostActionPacketCanBeRetransmittedUnderNewSequence_ExactlyOnce",
+      "Status": "Passed",
+      "Duration": 0.0004621,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.MessageLimitCountsUtf8BytesNotCharacters",
+      "Status": "Passed",
+      "Duration": 0.0113262,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.NonFiniteInputIsRejected(float.NaN)",
+      "Status": "Passed",
+      "Duration": 0.0015501,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.NonFiniteInputIsRejected(float.PositiveInfinity)",
+      "Status": "Passed",
+      "Duration": 7.77E-05,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.NonFiniteInputIsRejected(float.NegativeInfinity)",
+      "Status": "Passed",
+      "Duration": 0.0001515,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.NormalThirtyHzInputCanRunWithoutRateRejection",
+      "Status": "Passed",
+      "Duration": 0.0080185,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.OldZeroAndExcessivelyFutureActionIdsAreSuppressed",
+      "Status": "Passed",
+      "Duration": 0.0008899,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.OversizedMovementAndAimAndPowerAreRejected",
+      "Status": "Passed",
+      "Duration": 0.0007557,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.QualityIgnoresNonFiniteNegativeAndAbsurdRtt",
+      "Status": "Passed",
+      "Duration": 0.0016637,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.QualityMeasuresRealRttJitterAndSnapshotLoss",
+      "Status": "Passed",
+      "Duration": 0.0017446,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.QuantizationOvershootIsNormalizedAndDoesNotMutateCaller",
+      "Status": "Passed",
+      "Duration": 0.0002572,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.RateLimiterCapsBurstAndRefillsFromServerTimeOnly",
+      "Status": "Passed",
+      "Duration": 0.0015186,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.RoundTripProbeRejectsUnknownExpiredAndReplayedTokens",
+      "Status": "Passed",
+      "Duration": 0.001508,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.SequenceNumbersWrapWithoutAcceptingPreWrapReplay",
+      "Status": "Passed",
+      "Duration": 0.0004034,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.SnapshotLossWindowRecoversAndUintTickWrapIsHandled",
+      "Status": "Passed",
+      "Duration": 0.000387,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineProtocolTests.SnapshotRoundTripHasExactlySixDistinctSlotsAndFiniteTransforms",
+      "Status": "Passed",
+      "Duration": 0.0023703,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineSnapshotBinaryTests.CountdownLimitIsUtf8BytesAndEmptyCountdownWorks",
+      "Status": "Passed",
+      "Duration": 0.024571,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineSnapshotBinaryTests.EncoderRejectsNonFinitePositionsAndInvalidRotations",
+      "Status": "Passed",
+      "Duration": 0.0012101,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineSnapshotBinaryTests.FullSixActorPayloadStaysBelowDatagramBudgetAndRoundTrips",
+      "Status": "Passed",
+      "Duration": 0.006556,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineSnapshotBinaryTests.InvalidMagicNaNClockOutOfRangeSlotAndDuplicateActorAreRejected",
+      "Status": "Passed",
+      "Duration": 0.0016095,
+      "Message": null,
+      "StackTrace": null
+    },
+    {
+      "FullName": "ArcadeFootball.Tests.OnlineSnapshotBinaryTests.TruncationAtEveryByteBoundaryIsRejectedWithoutThrowing",
+      "Status": "Passed",
+      "Duration": 0.0117809,
+      "Message": null,
+      "StackTrace": null
+    }
+  ]
+}

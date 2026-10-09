@@ -1,0 +1,68 @@
+{
+  "startedUtc": "2026-10-09T17:27:31.577Z",
+  "checks": [
+    {
+      "name": "dedicated registered and allocated",
+      "passed": true
+    },
+    {
+      "name": "exactly six slots: 2 humans + 4 bots",
+      "passed": true
+    },
+    {
+      "name": "both clients receive authoritative snapshots",
+      "passed": true
+    },
+    {
+      "name": "backend allows same-account reconnect",
+      "passed": true
+    },
+    {
+      "name": "UDP proxy accepts replacement endpoint",
+      "passed": true
+    },
+    {
+      "name": "replacement client receives current authoritative snapshot",
+      "passed": true
+    },
+    {
+      "name": "dedicated commits trusted final result",
+      "passed": true
+    },
+    {
+      "name": "both accounts agree final score",
+      "passed": true
+    },
+    {
+      "name": "time-aligned authoritative ball and score snapshots agree",
+      "passed": true
+    },
+    {
+      "name": "server logged bot takeover",
+      "passed": true
+    },
+    {
+      "name": "server confirms original slot reconnect",
+      "passed": true
+    },
+    {
+      "name": "no runtime exception markers",
+      "passed": true
+    }
+  ],
+  "result": {
+    "blueScore": 2,
+    "redScore": 0,
+    "participants": 6
+  },
+  "network": {
+    "comparedSnapshotPairs": 6,
+    "maxBallDifference": 0.469,
+    "redSnapshotCount": 57,
+    "redMeanRttMs": 214,
+    "redMaxObservedLossPercent": 5.6,
+    "impaired": true
+  },
+  "passed": true,
+  "finishedUtc": "2026-10-09T17:28:44.273Z"
+}

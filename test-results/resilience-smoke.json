@@ -1,0 +1,240 @@
+{
+  "startedUtc": "2026-10-09T17:22:53.210Z",
+  "serverId": "resilience-ff39bc23-c",
+  "checks": [
+    {
+      "name": "dedicated registered and allocated",
+      "passed": true,
+      "atUtc": "2026-10-09T17:22:58.512Z"
+    },
+    {
+      "name": "six distinct accounts occupy six distinct human slots",
+      "passed": true,
+      "atUtc": "2026-10-09T17:22:58.527Z",
+      "slots": [
+        0,
+        3,
+        1,
+        4,
+        2,
+        5
+      ]
+    },
+    {
+      "name": "all six real clients receive matching assigned slots",
+      "passed": true,
+      "atUtc": "2026-10-09T17:23:02.388Z"
+    },
+    {
+      "name": "server has six authenticated human peers",
+      "passed": true,
+      "atUtc": "2026-10-09T17:23:02.394Z"
+    },
+    {
+      "name": "real client emits forbidden GOAL/state/result packets",
+      "passed": true,
+      "atUtc": "2026-10-09T17:23:03.099Z"
+    },
+    {
+      "name": "received authoritative scores ignore forged 999 payload",
+      "passed": true,
+      "atUtc": "2026-10-09T17:23:07.106Z"
+    },
+    {
+      "name": "two original actors become server bots",
+      "passed": true,
+      "atUtc": "2026-10-09T17:23:12.768Z"
+    },
+    {
+      "name": "remaining client receives advancing match during both disconnects",
+      "passed": true,
+      "atUtc": "2026-10-09T17:23:12.772Z"
+    },
+    {
+      "name": "both accounts receive same-slot reconnect allocations",
+      "passed": true,
+      "atUtc": "2026-10-09T17:23:12.832Z"
+    },
+    {
+      "name": "both replacement clients resume original slots",
+      "passed": true,
+      "atUtc": "2026-10-09T17:23:15.661Z"
+    },
+    {
+      "name": "two route-loss clients also become bots",
+      "passed": true,
+      "atUtc": "2026-10-09T17:23:22.841Z"
+    },
+    {
+      "name": "both live client processes automatically reconnect to original slots",
+      "passed": true,
+      "atUtc": "2026-10-09T17:23:23.549Z"
+    },
+    {
+      "name": "server commits a trusted result after all four interruptions",
+      "passed": true,
+      "atUtc": "2026-10-09T17:25:53.591Z"
+    },
+    {
+      "name": "all six accounts agree on committed score and retained participants",
+      "passed": true,
+      "atUtc": "2026-10-09T17:25:53.615Z"
+    },
+    {
+      "name": "all six human participants share exactly one MVP",
+      "passed": true,
+      "atUtc": "2026-10-09T17:25:53.615Z",
+      "mvpCount": 1
+    },
+    {
+      "name": "all six clients measure 30 Hz simulation and 15 Hz snapshots",
+      "passed": true,
+      "atUtc": "2026-10-09T17:25:55.130Z"
+    },
+    {
+      "name": "time-aligned six-client ball and score samples agree",
+      "passed": true,
+      "atUtc": "2026-10-09T17:25:55.133Z"
+    },
+    {
+      "name": "forged GOAL/state/result never changes any recorded authoritative score",
+      "passed": true,
+      "atUtc": "2026-10-09T17:25:55.147Z"
+    },
+    {
+      "name": "no runtime exception markers",
+      "passed": true,
+      "atUtc": "2026-10-09T17:25:55.156Z"
+    }
+  ],
+  "artifacts": "/Users/dkikowe/Desktop/футбол/backend/.local/resilience-smoke-ZLyyNE",
+  "fixture": {
+    "humanClients": 6,
+    "dedicatedProcesses": 1,
+    "durationSeconds": 105,
+    "processLossClientIndexes": [
+      1,
+      4
+    ],
+    "automaticReconnectClientIndexes": [
+      2,
+      5
+    ],
+    "maliciousPacketClientIndex": 5,
+    "sleepGuard": "caffeinate -i -s -w <harness PID>; display sleep is unchanged"
+  },
+  "processLoss": {
+    "atUtc": "2026-10-09T17:23:07.108Z",
+    "slots": [
+      3,
+      2
+    ],
+    "originalPids": [
+      79556,
+      79559
+    ],
+    "replacementPids": [
+      79571,
+      79570
+    ]
+  },
+  "automaticReconnect": {
+    "cutAtUtc": "2026-10-09T17:23:17.165Z",
+    "slots": [
+      1,
+      5
+    ],
+    "originalPids": [
+      79557,
+      79560
+    ],
+    "route": "initial pinned UDP proxy -> renewed backend-advertised direct UDP endpoint",
+    "reconnectApiCalledByHarness": false,
+    "restoredAtUtc": "2026-10-09T17:23:23.549Z",
+    "finalPids": [
+      79557,
+      79560
+    ]
+  },
+  "result": {
+    "matchId": "405af30d-11d1-4c41-bf0c-7f1ce23cc47f",
+    "blueScore": 5,
+    "redScore": 13,
+    "humanParticipants": 6,
+    "mvpCount": 1
+  },
+  "networkCadence": {
+    "expectedTicksPerSecond": 30,
+    "expectedSnapshotsPerSecond": 15,
+    "windowSeconds": [
+      0.5,
+      2
+    ],
+    "samplesUseServerClock": true,
+    "clients": [
+      {
+        "clientIndex": 0,
+        "slot": 0,
+        "windows": 167,
+        "excludedGaps": 0,
+        "medianTicksPerSecond": 30,
+        "medianSnapshotsPerSecond": 15
+      },
+      {
+        "clientIndex": 1,
+        "slot": 3,
+        "windows": 154,
+        "excludedGaps": 0,
+        "medianTicksPerSecond": 30,
+        "medianSnapshotsPerSecond": 15
+      },
+      {
+        "clientIndex": 2,
+        "slot": 1,
+        "windows": 160,
+        "excludedGaps": 1,
+        "medianTicksPerSecond": 30,
+        "medianSnapshotsPerSecond": 15
+      },
+      {
+        "clientIndex": 3,
+        "slot": 4,
+        "windows": 167,
+        "excludedGaps": 0,
+        "medianTicksPerSecond": 30,
+        "medianSnapshotsPerSecond": 15
+      },
+      {
+        "clientIndex": 4,
+        "slot": 2,
+        "windows": 154,
+        "excludedGaps": 0,
+        "medianTicksPerSecond": 30,
+        "medianSnapshotsPerSecond": 15
+      },
+      {
+        "clientIndex": 5,
+        "slot": 5,
+        "windows": 161,
+        "excludedGaps": 1,
+        "medianTicksPerSecond": 30,
+        "medianSnapshotsPerSecond": 15
+      }
+    ]
+  },
+  "synchronization": {
+    "comparedPairs": 335,
+    "exactTickPairs": 109,
+    "largestTimedBallDifference": 1.072,
+    "finalClientSnapshotCounts": [
+      168,
+      155,
+      162,
+      168,
+      155,
+      163
+    ]
+  },
+  "passed": true,
+  "finishedUtc": "2026-10-09T17:25:55.675Z"
+}
