@@ -1,0 +1,135 @@
+{
+  "startedUtc": "2026-10-09T18:18:38.146Z",
+  "apiOrigin": "https://api-production-faa76.up.railway.app",
+  "region": "us-east",
+  "fixture": {
+    "humanClients": 2,
+    "serverBots": 4,
+    "localServerProcesses": 0,
+    "input": "ordinary Development-client movement/shoot/tackle inputs",
+    "serverRules": "unchanged release match"
+  },
+  "checks": [
+    {
+      "name": "real public dedicated allocated through private-room flow",
+      "passed": true,
+      "atUtc": "2026-10-09T18:18:43.651Z"
+    },
+    {
+      "name": "allocation contains two humans, four bots and public DTLS trust",
+      "passed": true,
+      "atUtc": "2026-10-09T18:18:45.980Z"
+    },
+    {
+      "name": "both actual Mac clients receive public authoritative snapshots over DTLS",
+      "passed": true,
+      "atUtc": "2026-10-09T18:18:53.516Z"
+    },
+    {
+      "name": "both clients observe advancing match ticks",
+      "passed": true,
+      "atUtc": "2026-10-09T18:18:56.526Z"
+    },
+    {
+      "name": "public server clears old connection and grants same-account reconnect",
+      "passed": true,
+      "atUtc": "2026-10-09T18:19:02.941Z"
+    },
+    {
+      "name": "surviving client continues receiving match while opponent is disconnected",
+      "passed": true,
+      "atUtc": "2026-10-09T18:19:02.944Z"
+    },
+    {
+      "name": "replacement client resumes the original slot and current authoritative tick",
+      "passed": true,
+      "atUtc": "2026-10-09T18:19:05.957Z"
+    },
+    {
+      "name": "public dedicated commits a normal match result",
+      "passed": true,
+      "atUtc": "2026-10-09T18:19:47.563Z"
+    },
+    {
+      "name": "both accounts agree on committed result and persisted history",
+      "passed": true,
+      "atUtc": "2026-10-09T18:19:49.045Z"
+    },
+    {
+      "name": "time-aligned public ball and score snapshots agree",
+      "passed": true,
+      "atUtc": "2026-10-09T18:19:49.052Z"
+    },
+    {
+      "name": "no client runtime exception markers",
+      "passed": true,
+      "atUtc": "2026-10-09T18:19:49.055Z"
+    }
+  ],
+  "endpoint": {
+    "address": "167.172.156.89",
+    "port": 7777,
+    "serverName": "football-game",
+    "caSha256": "8b07dd3507dc7c9a79cc2e4eb77a4cd8b195710c8e7f39c0db15e032f77bdc73",
+    "slots": [
+      0,
+      3
+    ]
+  },
+  "reconnect": {
+    "killedAtUtc": "2026-10-09T18:18:56.529Z",
+    "slot": 3,
+    "restoredAtUtc": "2026-10-09T18:19:05.958Z"
+  },
+  "result": {
+    "matchId": "aaab32f6-079f-4625-99af-3ae4389afaa5",
+    "blueScore": 3,
+    "redScore": 2,
+    "durationSeconds": 51.49098,
+    "humanParticipants": 2,
+    "participants": 6
+  },
+  "network": {
+    "comparedSnapshotPairs": 6,
+    "exactTickPairs": 1,
+    "maxTimeAlignedBallDifference": 0.515,
+    "blueLoggedSamples": 54,
+    "redLoggedSamples": 46,
+    "meanAppRttMs": 256,
+    "maxObservedLossPercent": 5.9
+  },
+  "passed": true,
+  "finishedUtc": "2026-10-09T18:19:49.284Z",
+  "serverEvidence": {
+    "platform": "Ubuntu 24.04 x86_64 Linux Dedicated Release",
+    "artifactSha256": "dfac5036288ffee63a642d8f607a6bb1de4a30a1c422a62acf10eb36d829bec6",
+    "observedBotTakeoverSlot": 3,
+    "observedTakeoverUtc": "2026-10-09T18:19:01Z",
+    "observedRejoinUtc": "2026-10-09T18:19:05Z",
+    "resultCommitted": true,
+    "serverRecycledAndRegisteredForNextMatch": true,
+    "maximumObservedMemoryBytes": 210186240,
+    "medianTicksPerSecond": 30.02,
+    "medianSnapshotsPerSecond": 15.0,
+    "nginxPort80StatusAfterTest": 200,
+    "serverRuntimeExceptionsAfterMarkerFix": 0,
+    "knownWarnings": "Dedicated build logs stripped shader/audio presentation warnings on startup; no resulting runtime exception or failed match was observed."
+  },
+  "apiValidation": {
+    "dependencyAndAuthenticationGetChecksPassed": 6,
+    "authenticatedChecksBeforeRestartPassed": 8,
+    "persistenceChecksAfterRestartPassed": 2,
+    "postgresPrivate": true,
+    "redisPrivate": true,
+    "redisAofEnabled": true,
+    "ownedTransientRoomsPartyQueueAndCredentialFilesCleaned": true
+  },
+  "limits": [
+    "One simultaneous 3v3 match process on 458 MiB / 1 vCPU VPS",
+    "Two actual client processes on one Mac, not six public devices",
+    "No mobile Wi-Fi/cellular handoff or production load/soak verification",
+    "Region probe measures the Railway HTTPS API; transport RTT measures the actual VPS",
+    "API in Singapore and game VPS in New York",
+    "Loss percentage is a client snapshot-loss estimate, not independently captured UDP loss"
+  ]
+}

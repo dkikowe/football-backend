@@ -1,11 +1,17 @@
-# Football online backend and local dedicated fleet
+# Football online backend and dedicated server
 
 This is the implemented local multiplayer MVP backend: NestJS/TypeScript, PostgreSQL persistent accounts/social/results, Redis sessions/presence/queues/reservations. Unity Netcode for GameObjects + Unity Transport runs authoritative gameplay in a separate headless Unity process. Node does not simulate football physics. Offline Training and local saves remain separate.
 
 See [CONTRACT.md](CONTRACT.md) for exact Unity-compatible JSON/routes and [TESTING.md](TESTING.md) for tested scope. No paid service, SaaS SDK account or production credential is required locally.
 
-For the hosted HTTP API, see [Railway deployment](RAILWAY.md). A publicly reachable
-Unity UDP dedicated server is still required for Internet matches.
+## Deployed instance
+
+- API: [Railway HTTPS health](https://api-production-faa76.up.railway.app/health), deployed automatically from this repository main branch, with private PostgreSQL and Redis.
+- Authoritative Unity Linux server: `167.172.156.89:7777/UDP`, DTLS, region `us-east` (nyc1).
+- **Public match PASS, 2026-10-09:** two real Mac clients + four bots, score 3-2, same-slot reconnect, AI takeover and persisted results for both accounts. [Redacted report](test-results/public-railway-vps-smoke.json).
+- One simultaneous match on the supplied 458 MiB / 1 vCPU VPS. Mean tested application RTT 256 ms; production load, mobile devices and six public clients remain unverified.
+
+See [Railway deployment](RAILWAY.md) and [VPS service/DTLS operation](deploy/README.md). The API and Unity simulation are separate services. Existing nginx port 80 remains independent.
 
 ## Local API with installed PostgreSQL and Redis
 
