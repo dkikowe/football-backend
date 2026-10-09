@@ -1,0 +1,6 @@
+[Unit]
+Description=Renew Football DTLS leaf certificate
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/football/renew-football-certificate.sh

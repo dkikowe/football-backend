@@ -63,7 +63,7 @@ bash scripts/run-fleet.sh
 
 The supervisor assigns ports 7777..7778 and unique server IDs. Logs are under ignored `.local/fleet`. `GAME_PORT` changes the base port. It retries the health check when API is down and restarts exited processes with a short backoff. Stop with Ctrl+C/SIGTERM; children receive SIGTERM.
 
-Environment used by Unity: `BACKEND_URL`, `GAME_SERVER_SECRET`, `GAME_SERVER_ID`, `GAME_REGION`, `GAME_PUBLIC_ADDRESS`, `GAME_LISTEN_ADDRESS`, `GAME_PORT`. Public binds require Unity's DTLS certificate/key configuration (`GAME_TLS_CERT`, `GAME_TLS_KEY`). Optional backend `TRANSPORT_CA_CERTIFICATE_FILE` and `TRANSPORT_SERVER_NAME` advertise only public trust material in client allocation; never advertise a private key.
+Environment used by Unity: `BACKEND_URL`, `GAME_SERVER_SECRET`, `GAME_SERVER_ID`, `GAME_REGION`, `GAME_PUBLIC_ADDRESS`, `GAME_LISTEN_ADDRESS`, `GAME_PORT`. Public binds require Unity's DTLS certificate/key configuration (`GAME_TLS_CERT`, `GAME_TLS_KEY`). For public clients set backend `TRANSPORT_CA_CERTIFICATE` (multiline public PEM, preferred) or `TRANSPORT_CA_CERTIFICATE_FILE`, together with `TRANSPORT_SERVER_NAME`; allocation advertises only public trust material, never a private key. Both may remain blank for local loopback development or API provisioning before fleet registration.
 
 ## Real local multiplayer smoke
 

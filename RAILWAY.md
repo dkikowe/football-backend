@@ -37,14 +37,21 @@ Set API variables via Railway's protected variable UI/CLI, never Git:
 | `GAME_SERVER_SECRET` | Random 32+ byte secret shared only with dedicated servers |
 | `REGIONS_JSON` | Array of `{ "id": "eu", "probeUrl": "https://API_DOMAIN/v1/ping?region=eu" }`; region ID must match `GAME_REGION` on the actual dedicated fleet |
 | `TRUSTED_PROXY_CIDRS` | Only explicitly verified direct Railway proxy IPs/CIDRs; see below |
+| `TRANSPORT_CA_CERTIFICATE` | Complete multiline public trust certificate PEM, stored as a protected variable before registering a public fleet |
+| `TRANSPORT_SERVER_NAME` | DNS identity expected by clients in the dedicated server's DTLS certificate |
 
 Railway assigns `PORT`; no fixed override is necessary. Do not expose database TCP
 proxies for routine service communication or disable TLS certificate validation.
 Generate a fresh production server secret; never upload local `.env` credentials.
 Public Unity transport requires DTLS: configure the dedicated server certificate
-and private key, plus backend `TRANSPORT_CA_CERTIFICATE_FILE` and
+and private key, plus backend `TRANSPORT_CA_CERTIFICATE` and
 `TRANSPORT_SERVER_NAME` so clients receive the expected trust certificate and
-identity. The backend reads the **public** CA certificate from that file; keep the
+identity. Paste the actual multiline **public** PEM into the protected variable,
+without literal backslash-n escapes. A nonempty environment PEM takes precedence
+over the alternative `TRANSPORT_CA_CERTIFICATE_FILE` mounted-file setting. Startup
+parses X.509 and rejects malformed PEM, extra certificates or any private key.
+In production certificate and server name must be set together. Both may remain
+blank while provisioning the HTTP API before fleet registration. Keep the
 dedicated server's private key exclusively on its host.
 
 ## Forwarded client IP and rate limits
