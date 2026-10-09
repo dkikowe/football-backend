@@ -71,7 +71,7 @@ async function main() {
     }
     try {
       const ip = resolveClientIp(req);
-      if (!reportedProxyPeer && process.env.RAILWAY_DEPLOYMENT_ID) {
+      if (!reportedProxyPeer && process.env.RAILWAY_SERVICE_ID) {
         // A socket address is configuration evidence; never log tokens or headers.
         reportedProxyPeer = true;
         process.stdout.write(
