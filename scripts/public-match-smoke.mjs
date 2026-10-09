@@ -10,13 +10,13 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 const binary = process.argv[2] || process.env.UNITY_CLIENT_BINARY;
 if (!binary || !process.env.PUBLIC_SMOKE_API) {
-  console.error("Usage: PUBLIC_SMOKE_API=https://api.example.com PUBLIC_SMOKE_REGION=asia node scripts/public-match-smoke.mjs '/path/to/Arcade Football'");
+  console.error("Usage: PUBLIC_SMOKE_API=https://api.example.com PUBLIC_SMOKE_REGION=us-east node scripts/public-match-smoke.mjs '/path/to/Arcade Football'");
   process.exit(2);
 }
 const origin = new URL(process.env.PUBLIC_SMOKE_API);
 assert(origin.protocol === "https:" && !origin.username && !origin.password && !origin.search && !origin.hash && origin.pathname === "/", "Supply a public HTTPS API origin without credentials.");
 const base = origin.origin;
-const region = process.env.PUBLIC_SMOKE_REGION || "asia";
+const region = process.env.PUBLIC_SMOKE_REGION || "us-east";
 const expectedAddress = process.env.PUBLIC_SMOKE_GAME_ADDRESS || "167.172.156.89";
 const expectedPort = Number(process.env.PUBLIC_SMOKE_GAME_PORT || 7777);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -126,7 +126,7 @@ try {
     sessions.push(await request("/v1/auth/guest", { method: "POST", body: { nickname, characterId } }));
   assert.notEqual(sessions[0].playerId, sessions[1].playerId);
   const sessionFiles = await Promise.all(sessions.map((s, i) => credentialFile("session-" + i, s)));
-  const room = await request("/v1/rooms", { method: "POST", session: sessions[0], body: { region, characterId: "kai" } });
+  const room = await request("/v1/rooms", { method: "POST", session: sessions[0], body: { region } });
   roomCode = room.code;
   await request("/v1/rooms/join", { method: "POST", session: sessions[1], body: { code: roomCode, characterId: "leo" } });
   const started = await until("real public dedicated allocated through private-room flow", () =>
@@ -207,7 +207,7 @@ try {
   if (!report.passed) for (const session of sessions) {
     try {
       if (matchId) await request("/v1/matches/" + matchId + "/leave", { method: "POST", session });
-      else if (roomCode) await request("/v1/rooms/" + roomCode + "/leave", { method: "POST", session });
+      else if (roomCode) await request("/v1/rooms/" + roomCode, { method: "DELETE", session });
     } catch {}
   }
   for (const path of credentialFiles) await unlink(path).catch(() => {});
