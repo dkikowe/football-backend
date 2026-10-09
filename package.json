@@ -10,7 +10,7 @@
     "start": "node --env-file-if-exists=.env.local dist/main.js",
     "dev": "npm run build && npm start",
     "migrate": "node --env-file-if-exists=.env.local dist/migrate.js",
-    "test": "npm run build && node --test test/client-ip.mjs test/integration.mjs",
+    "test": "npm run build && node --test test/client-ip.mjs test/deployed-probe.mjs test/integration.mjs",
     "smoke:deployed": "node scripts/deployed-api-smoke.mjs",
     "local:init": "bash scripts/local-init.sh"
   },

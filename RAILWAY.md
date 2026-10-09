@@ -41,9 +41,11 @@ Set API variables via Railway's protected variable UI/CLI, never Git:
 Railway assigns `PORT`; no fixed override is necessary. Do not expose database TCP
 proxies for routine service communication or disable TLS certificate validation.
 Generate a fresh production server secret; never upload local `.env` credentials.
-Public transport trust may require `TRANSPORT_CA_CERTIFICATE_FILE` and
-`TRANSPORT_SERVER_NAME`. The backend reads the **public** CA certificate from that
-file; keep the dedicated server's private key exclusively on its host.
+Public Unity transport requires DTLS: configure the dedicated server certificate
+and private key, plus backend `TRANSPORT_CA_CERTIFICATE_FILE` and
+`TRANSPORT_SERVER_NAME` so clients receive the expected trust certificate and
+identity. The backend reads the **public** CA certificate from that file; keep the
+dedicated server's private key exclusively on its host.
 
 ## Forwarded client IP and rate limits
 
@@ -75,7 +77,9 @@ unauthenticated rejection at profile/history/internal metrics routes. It does no
 create accounts, queue matches, write results or change currency. The API's normal
 short-lived request-rate counters are the only expected writes. It fails on HTTP
 redirects, non-HTTPS public URLs, missing no-store/nosniff or broken dependencies.
-It does **not** claim multiplayer success. The real match acceptance requires a
+For a public API all advertised probes must use HTTPS and a non-loopback address;
+a locally running API cannot mask a loopback region configuration. The probe does
+**not** claim multiplayer success. The real match acceptance requires a
 public UDP server plus two clients, allocation, simultaneous authoritative
 snapshots, disconnect/reconnect and committed match results.
 
