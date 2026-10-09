@@ -61,7 +61,7 @@ async function main() {
   });
   app.use(json({ limit: "32kb" }));
   const resolveClientIp = clientIpResolver(config.TRUSTED_PROXY_CIDRS);
-  let reportedUntrustedProxy = false;
+  let reportedProxyPeer = false;
   app.use(async (req: Request, res: Response, next: NextFunction) => {
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -71,20 +71,17 @@ async function main() {
     }
     try {
       const ip = resolveClientIp(req);
-      if (
-        !reportedUntrustedProxy &&
-        process.env.RAILWAY_DEPLOYMENT_ID &&
-        req.headers["x-railway-edge"] &&
-        req.headers["x-real-ip"] &&
-        ip === req.socket.remoteAddress
-      ) {
+      if (!reportedProxyPeer && process.env.RAILWAY_DEPLOYMENT_ID) {
         // A socket address is configuration evidence; never log tokens or headers.
-        reportedUntrustedProxy = true;
+        reportedProxyPeer = true;
         process.stdout.write(
           JSON.stringify({
-            level: "warn",
-            event: "untrusted_proxy_peer",
+            level: "info",
+            event: "proxy_peer_observed",
             peer: req.socket.remoteAddress,
+            hasXRealIp: typeof req.headers["x-real-ip"] === "string",
+            hasXForwardedFor:
+              typeof req.headers["x-forwarded-for"] === "string",
           }) + "\n",
         );
       }

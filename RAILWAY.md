@@ -54,8 +54,9 @@ single, validated IP only if the direct socket peer matches `TRUSTED_PROXY_CIDRS
 It ignores `X-Forwarded-For`, malformed/list-valued addresses and headers arriving
 from other peers. An empty list preserves the conservative socket-IP limit.
 
-On Railway the first request with an untrusted proxy produces one
-`untrusted_proxy_peer` log with the socket address only. Verify it against the
+On Railway the first request other than `/health` produces one
+`proxy_peer_observed` log with the socket address and booleans indicating whether
+`X-Real-IP`/`X-Forwarded-For` are present; no header values are logged. Verify it against the
 deployment network, then configure its narrow IP/CIDR. Do not trust `0.0.0.0/0`,
 `::/0`, arbitrary private networks or a caller-supplied proxy header. No direct
 public TCP bypass should expose the API container. Keep other services in this
@@ -89,6 +90,34 @@ set `BACKEND_URL` to the same origin and configure `GAME_SERVER_SECRET`,
 `GAME_LISTEN_ADDRESS=0.0.0.0`, `GAME_TLS_CERT`, `GAME_TLS_KEY` and the existing
 supervisor. A single-local-API probe measures API reachability, not global UDP
 regional latency; do not advertise regions without real server capacity/probes.
+
+## Authenticated deployment and restart smoke
+
+Run this explicitly against a fresh deployment before registering dedicated fleet
+capacity. It creates exactly two disposable `DeployTest...` guest accounts and
+uses only their normal client API credentials. It never submits results, grants
+currency or uses the dedicated server secret.
+
+```bash
+node scripts/deployed-session-smoke.mjs https://your-api.up.railway.app before
+# Restart/redeploy the API service; wait for /health to become healthy.
+node scripts/deployed-session-smoke.mjs https://your-api.up.railway.app after
+```
+
+The first phase checks profile selection, guest refresh, client-token denial at
+the internal API, friend request/acceptance, party invitation/acceptance/removal,
+private room join/leave, and a search that remains unallocated then cancels. It
+leaves only the accepted friendship and private `.local/deployed-session-smoke.json`
+(mode `0600`) for the restart check. The second phase refreshes the same accounts,
+verifies saved profiles/friendship, removes the friendship and deletes the private
+state file. It also verifies these guests still have zero match stats/rewards.
+
+Public output contains assertion names/booleans, never credentials. A third
+`cleanup` phase can remove owned transient resources and the saved state after an
+interrupted test. An optional final argument selects another state filename
+directly inside `.local`. There is no account-deletion endpoint, so the two named
+disposable guest profiles remain without history or rewards. This is substantive
+HTTP/session acceptance, **not** evidence of a real UDP multiplayer match.
 
 Official references: [health checks](https://docs.railway.com/deployments/healthchecks),
 [public networking](https://docs.railway.com/networking/public-networking/specs-and-limits),
