@@ -8,11 +8,13 @@ import {
   Param,
   Query,
   Req,
+  Header,
 } from "@nestjs/common";
 import { Request } from "express";
 import { z } from "zod";
 import { config } from "./config";
-import { db, redis } from "./db";
+import { db, redis, key } from "./db";
+import { privacyPage, supportPage } from "./public-pages";
 import { AuthService } from "./auth";
 import { SocialService } from "./social";
 import { MatchesService } from "./matches";
@@ -73,9 +75,23 @@ export class ApiController {
     return this.auth.guest(b.nickname, b.characterId);
   }
   @Post("v1/auth/refresh") refresh(@Body() body: unknown) {
-    return this.auth.refresh(
-      parse(strict({ refreshToken: secret }), body).refreshToken,
-    );
+    const token = parse(strict({ refreshToken: secret }), body).refreshToken;
+    return lock(() => this.auth.refresh(token));
+  }
+  @Get("privacy") @Header("Content-Type", "text/html; charset=utf-8") privacy() { return privacyPage; }
+  @Get("support") @Header("Content-Type", "text/html; charset=utf-8") support() { return supportPage; }
+  @Delete("v1/me") async deleteAccount(@Req() req: Request) {
+    return lock(async () => {
+      if (await this.auth.wasDeleted(req)) return {ok:true};
+      const pid=await this.auth.auth(req);
+      const unfinished=await db.query("SELECT 1 FROM match_participants p JOIN matches m ON m.id=p.match_id WHERE p.player_id=$1 AND m.state NOT IN ('FINISHED','FAILED') LIMIT 1",[pid]);
+      if(unfinished.rowCount) fail(409,"MATCH_FINISHING","Your online match is still finishing. Retry when it has ended.");
+      const queue=await redis.get(key("active-queue:"+pid));
+      if(queue) await this.matches.cancel(pid,queue);
+      const room=await redis.get(key("active-room:"+pid));
+      if(room) await this.matches.leaveRoom(pid,room);
+      return this.auth.deleteAccount(pid);
+    });
   }
   @Get("v1/me") async me(@Req() req: Request) {
     return this.auth.me(await this.auth.auth(req));

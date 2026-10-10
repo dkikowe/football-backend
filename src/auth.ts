@@ -77,9 +77,61 @@ export class AuthService {
     const playerId = await redis.get(
       key("access:" + hash(authorization.slice(7))),
     );
-    if (!playerId) fail(401, "UNAUTHENTICATED", "Session expired.");
+    if (!playerId || !(await db.query("SELECT 1 FROM players WHERE id=$1", [playerId])).rowCount)
+      fail(401, "UNAUTHENTICATED", "Session expired.");
     await redis.set(key("presence:" + playerId), "1", { EX: 45 });
     return playerId;
+  }
+  async wasDeleted(req: Request) {
+    const bearer = req.headers.authorization;
+    return bearer?.startsWith("Bearer ") &&
+      await redis.exists(key("deleted-access:" + hash(bearer.slice(7))));
+  }
+  async deleteAccount(playerId: string) {
+    // The lifecycle lock serializes this with matchmaking, results and refresh.
+    const active = await db.query(
+      "SELECT 1 FROM match_participants p JOIN matches m ON m.id=p.match_id WHERE p.player_id=$1 AND m.state NOT IN ('FINISHED','FAILED') LIMIT 1", [playerId]);
+    if (active.rowCount) fail(409, "MATCH_FINISHING", "Your online match is still finishing. Retry when it has ended.");
+    const history = await db.query("SELECT match_id FROM match_participants WHERE player_id=$1", [playerId]);
+    const refresh = await db.query("SELECT token_hash FROM guest_refresh WHERE player_id=$1", [playerId]);
+    await transaction(async c => {
+      await c.query("SELECT id FROM players WHERE id=$1 FOR UPDATE", [playerId]);
+      // Preserve the other members, transferring leadership before removing this account.
+      const parties = await c.query("SELECT id FROM parties WHERE leader_id=$1", [playerId]);
+      for (const party of parties.rows) {
+        const next = await c.query("SELECT player_id FROM party_memberships WHERE party_id=$1 AND player_id<>$2 ORDER BY joined_at,player_id LIMIT 1", [party.id,playerId]);
+        if (next.rowCount) await c.query("UPDATE parties SET leader_id=$2 WHERE id=$1", [party.id,next.rows[0].player_id]);
+        else await c.query("DELETE FROM parties WHERE id=$1", [party.id]);
+      }
+      await c.query("DELETE FROM party_memberships WHERE player_id=$1", [playerId]);
+      await c.query("DELETE FROM party_invites WHERE player_id=$1", [playerId]);
+      await c.query("DELETE FROM friendships WHERE requester_id=$1 OR recipient_id=$1", [playerId]);
+      await c.query("UPDATE match_participants SET player_id=NULL,nickname='Deleted Player',character_id='kai',goals=0,assists=0,shots=0,passes=0,tackles=0,possession_seconds=0,is_mvp=false WHERE player_id=$1", [playerId]);
+      for (const table of ["rewards","balances","ratings","player_stats"])
+        await c.query(`DELETE FROM ${table} WHERE player_id=$1`, [playerId]);
+      await c.query("DELETE FROM players WHERE id=$1", [playerId]);
+    });
+    for (const row of refresh.rows) await redis.del(key("refresh-retry:"+row.token_hash.trim()));
+    for await (const keys of redis.scanIterator({MATCH:key("access:*"),COUNT:100})) {
+      for (const tokenKey of keys) if (await redis.get(tokenKey) === playerId) {
+        await redis.set(key("deleted-access:" + tokenKey.slice(key("access:").length)), "1", {EX:86400});
+        await redis.del(tokenKey);
+      }
+    }
+    for (const row of history.rows) {
+      const cacheKey=key("match:"+row.match_id), raw=await redis.get(cacheKey);
+      if (raw) {
+        const match=JSON.parse(raw);
+        for (const slot of match.slots ?? []) if(slot.playerId===playerId) {
+          slot.playerId="";slot.nickname="Deleted Player";slot.characterId="kai";
+        }
+        match.leases=(match.leases ?? []).filter((lease: any)=>lease.playerId!==playerId);
+        await redis.set(cacheKey,JSON.stringify(match),{KEEPTTL:true});
+      }
+      await redis.del(key("reconnect-token:"+row.match_id+":"+playerId));
+    }
+    await redis.del([key("presence:"+playerId),key("active-match:"+playerId),key("active-queue:"+playerId),key("active-room:"+playerId)]);
+    return {ok:true};
   }
   internal(req: Request) {
     const supplied = req.headers.authorization?.slice(7) || "";

@@ -785,6 +785,30 @@ test(
           );
         },
       );
+      await t.test("account deletion revokes sessions, clears friends and transfers party leadership", async () => {
+        const a=await post("/v1/auth/guest",{nickname:"Delete Me",characterId:"kai"});
+        const b=await post("/v1/auth/guest",{nickname:"Keep Me",characterId:"leo"});
+        await post("/v1/friends/requests",{playerId:b.playerId},a);
+        await post("/v1/friends/requests/"+a.playerId+"/respond",{accept:true},b);
+        const party=await post("/v1/party",{},a);
+        await post("/v1/party/invites",{playerId:b.playerId},a);
+        await post("/v1/party/invites/"+party.partyId+"/respond",{accept:true},b);
+        const refreshed=await post("/v1/auth/refresh",{refreshToken:a.refreshToken});
+        await req("/v1/me",{method:"DELETE",auth:refreshed});
+        await req("/v1/me",{method:"DELETE",auth:refreshed}); // lost-response retry
+        await req("/v1/me",{auth:a,status:401});
+        await req("/v1/me",{auth:refreshed,status:401});
+        await post("/v1/auth/refresh",{refreshToken:a.refreshToken},null,401);
+        await post("/v1/auth/refresh",{refreshToken:refreshed.refreshToken},null,401);
+        assert.equal((await req("/v1/friends",{auth:b})).friends.length,0);
+        assert.equal((await req("/v1/party",{auth:b})).leaderId,b.playerId);
+        const inspect=new pg.Pool({connectionString:dbUrl.toString()});
+        try { for(const table of ["players","guest_refresh","player_stats","ratings","balances"]){
+          const column=table==="players"?"id":"player_id";
+          assert.equal((await inspect.query(`SELECT 1 FROM ${table} WHERE ${column}=$1`,[a.playerId])).rowCount,0);
+        }} finally {await inspect.end();}
+        for(const route of ["privacy","support"]){const r=await fetch(base+"/"+route);assert.equal(r.status,200);assert.match(r.headers.get("content-type"),/text\/html/);assert.match(await r.text(),/krutyev5@gmail.com/);}
+      });
       await t.test(
         "random authorization headers cannot bypass guest rate limits",
         async () => {
