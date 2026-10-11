@@ -10,7 +10,7 @@
     "start": "node --env-file-if-exists=.env.local dist/main.js",
     "dev": "npm run build && npm start",
     "migrate": "node --env-file-if-exists=.env.local dist/migrate.js",
-    "test": "npm run build && node --test test/client-ip.mjs test/deployed-probe.mjs test/transport-config.mjs test/integration.mjs",
+    "test": "npm run build && node --test test/client-ip.mjs test/deployed-probe.mjs test/transport-config.mjs test/integration.mjs test/accounts-security.mjs",
     "smoke:deployed": "node scripts/deployed-api-smoke.mjs",
     "local:init": "bash scripts/local-init.sh"
   },
@@ -18,6 +18,7 @@
     "@nestjs/common": "^11.1.0",
     "@nestjs/core": "^11.1.0",
     "@nestjs/platform-express": "^11.1.0",
+    "jose": "^5.10.0",
     "pg": "^8.16.0",
     "redis": "^5.8.0",
     "reflect-metadata": "^0.2.2",

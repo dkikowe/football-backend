@@ -1,3 +1,6 @@
+import { appleChallenge, verifyApple, appleConfigured } from "./apple";
+import { attachIdentity, emailLogin, passwordHash, limitIdentity } from "./accounts";
+import { buy, selectItem, claimQuest } from "./economy";
 import {
   Controller,
   Get,
@@ -18,7 +21,7 @@ import { privacyPage, supportPage } from "./public-pages";
 import { AuthService } from "./auth";
 import { SocialService } from "./social";
 import { MatchesService } from "./matches";
-import { character, nickname, uuid, region, parse, lock, fail } from "./common";
+import { character, nickname, uuid, region, parse, lock, fail, hash } from "./common";
 const strict = <T extends z.ZodRawShape>(fields: T) => z.strictObject(fields);
 const guest = strict({ nickname, characterId: character });
 const secret = z.string().min(24).max(256);
@@ -73,6 +76,55 @@ export class ApiController {
   @Post("v1/auth/guest") guest(@Body() body: unknown) {
     const b = parse(guest, body);
     return this.auth.guest(b.nickname, b.characterId);
+  }
+  @Get("v1/auth/options") options(){return {apple:appleConfigured(),email:true,guest:true};}
+  @Post("v1/auth/apple/challenge") async appleStart(@Req() req:Request){
+    const pid=req.headers.authorization?await this.auth.auth(req):undefined;
+    return appleChallenge(pid);
+  }
+  @Post("v1/auth/apple") async apple(@Req() req:Request,@Body() body:unknown){
+    const b=parse(strict({challenge:secret,identityToken:z.string().min(100).max(10000),authorizationCode:z.string().min(1).max(4096)}),body);
+    const pid=req.headers.authorization?await this.auth.auth(req):undefined;
+    const verified=await verifyApple(b.challenge,b.identityToken,b.authorizationCode,pid);
+    return lock(()=>attachIdentity(this.auth,"apple",verified.subject,null,verified.guestId,verified.cipher));
+  }
+  @Post("v1/auth/register") async registerAccount(@Req() req:Request,@Body() body:unknown){
+    const b=parse(strict({email:z.email().trim().toLowerCase().max(254),password:z.string().min(10).max(128)}),body);
+    await limitIdentity(b.email);
+    const pid=req.headers.authorization?await this.auth.auth(req):undefined;
+    const encoded=await passwordHash(b.password);
+    return lock(()=>attachIdentity(this.auth,"email",b.email,encoded,pid));
+  }
+  @Post("v1/auth/login") async login(@Body() body:unknown){
+    const b=parse(strict({email:z.email().trim().toLowerCase().max(254),password:z.string().min(1).max(128)}),body);
+    return emailLogin(this.auth,b.email,b.password);
+  }
+  @Post("v1/auth/logout") async logout(@Req() req:Request,@Body() body:unknown){
+    const pid=await this.auth.auth(req), b=parse(strict({refreshToken:secret}),body);
+    return lock(async()=>{
+      await this.auth.available([pid]);
+      if(await redis.exists(key('active-room:'+pid)))fail(409,'IN_ROOM','Leave your private room before signing out.');
+      await db.query('UPDATE guest_refresh SET revoked_at=now() WHERE player_id=$1 AND family_id=(SELECT family_id FROM guest_refresh WHERE token_hash=$2 AND player_id=$1)',[pid,hash(b.refreshToken)]);
+      await redis.del([key('refresh-retry:'+hash(b.refreshToken)),key('access:'+hash(req.headers.authorization!.slice(7)))]);
+      return {ok:true};
+    });
+  }
+  @Post("v1/me/onboarding") async onboarding(@Req() req:Request,@Body() body:unknown){
+    const pid=await this.auth.auth(req),b=parse(strict({nickname,age:z.number().int().min(4).max(120)}),body);
+    await db.query('UPDATE players SET nickname=$2,age=$3,onboarding_complete=true WHERE id=$1',[pid,b.nickname,b.age]);
+    return this.auth.me(pid);
+  }
+  @Post("v1/shop/buy") async purchase(@Req() req:Request,@Body() body:unknown){
+    const pid=await this.auth.auth(req),b=parse(strict({itemId:z.string().max(80)}),body);
+    await buy(pid,b.itemId);return this.auth.me(pid);
+  }
+  @Post("v1/shop/select") async select(@Req() req:Request,@Body() body:unknown){
+    const pid=await this.auth.auth(req),b=parse(strict({itemId:z.string().max(80)}),body);
+    return lock(async()=>{await this.auth.available([pid]);await selectItem(pid,b.itemId);return this.auth.me(pid);});
+  }
+  @Post("v1/quests/claim") async claim(@Req() req:Request,@Body() body:unknown){
+    const pid=await this.auth.auth(req),b=parse(strict({questId:z.string().max(80)}),body);
+    await claimQuest(pid,b.questId);return this.auth.me(pid);
   }
   @Post("v1/auth/refresh") refresh(@Body() body: unknown) {
     const token = parse(strict({ refreshToken: secret }), body).refreshToken;

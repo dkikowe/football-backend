@@ -88,7 +88,7 @@ async function main() {
       const bucket = Math.floor(Date.now() / 60000);
       const limit = req.path.startsWith("/internal/")
         ? 1200
-        : req.path === "/v1/auth/guest"
+        : req.path.startsWith("/v1/auth/") && req.path !== "/v1/auth/refresh"
           ? 30
           : config.API_RATE_LIMIT;
       const identity =

@@ -12,3 +12,5 @@ dist/
 *.pem
 *.key
 .railway/secrets*
+
+*.p8

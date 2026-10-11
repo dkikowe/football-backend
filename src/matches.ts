@@ -1,3 +1,4 @@
+import { requireOwned } from "./economy";
 import { Injectable, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { AuthService } from "./auth";
@@ -36,6 +37,7 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
     },
   ) {
     this.region(input.region);
+    await requireOwned(playerId,"char:"+input.characterId);
     let members = [playerId];
     if (input.partyId) {
       const party = await this.social.party(playerId);
@@ -525,6 +527,7 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
   }
   async createRoom(playerId: string, region: string, characterId?: string, duel = false) {
     this.region(region);
+    if(characterId)await requireOwned(playerId,"char:"+characterId);
     await this.auth.available([playerId]);
     const old = await redis.get(key("active-room:" + playerId));
     if (old) {
@@ -570,6 +573,7 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
       fail(409, "ALREADY_IN_ROOM", "Leave your current room first.");
     if (room.members.length >= (room.duel ? 2 : 6))
       fail(409, "ROOM_FULL", room.duel ? "1v1 room already has two players." : "Room already has six players.");
+    await requireOwned(playerId,"char:"+characterId);
     room.members.push(playerId);
     await db.query("UPDATE players SET character_id=$2 WHERE id=$1", [
       playerId,
@@ -656,7 +660,7 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
       finishedUtc: row.finished_at?.toISOString() || "",
       participants: (
         await db.query(
-          "SELECT p.*,COALESCE(r.coins,0) reward_coins,COALESCE(r.xp,0) reward_xp,COALESCE(r.rating_delta,0) rating_delta FROM match_participants p LEFT JOIN rewards r ON r.match_id=p.match_id AND r.player_id=p.player_id WHERE p.match_id=$1 ORDER BY p.slot",
+          "SELECT p.*,COALESCE(r.coins,0) reward_coins,COALESCE(r.gems,0) reward_gems,COALESCE(r.xp,0) reward_xp,COALESCE(r.rating_delta,0) rating_delta FROM match_participants p LEFT JOIN rewards r ON r.match_id=p.match_id AND r.player_id=p.player_id WHERE p.match_id=$1 ORDER BY p.slot",
           [matchId],
         )
       ).rows.map((r) => ({
@@ -670,6 +674,7 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
         possessionSeconds: r.possession_seconds,
         isMvp: r.is_mvp,
         coins: r.reward_coins,
+        gems: r.reward_gems,
         xp: r.reward_xp,
         ratingDelta: r.rating_delta,
       })),
@@ -759,6 +764,7 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
           loss = own < other,
           coins = win ? 60 : loss ? 30 : 40,
           xp = win ? 100 : 60,
+          gems = win ? 3 : loss ? 1 : 2,
           delta = win ? 24 : loss ? -16 : 0;
         await c.query(
           "UPDATE match_participants SET goals=$3,assists=$4,shots=$5,passes=$6,tackles=$7,possession_seconds=$8,is_mvp=$9 WHERE match_id=$1 AND player_id=$2",
@@ -791,12 +797,12 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
           [p.playerId, delta],
         );
         await c.query(
-          "UPDATE balances SET coins=coins+$2,xp=xp+$3 WHERE player_id=$1",
-          [p.playerId, coins, xp],
+          "UPDATE balances SET coins=coins+$2,xp=xp+$3,gems=gems+$4 WHERE player_id=$1",
+          [p.playerId, coins, xp,gems],
         );
         await c.query(
-          "INSERT INTO rewards(match_id,player_id,coins,xp,rating_delta) VALUES($1,$2,$3,$4,$5)",
-          [matchId, p.playerId, coins, xp, delta],
+          "INSERT INTO rewards(match_id,player_id,coins,xp,rating_delta,gems) VALUES($1,$2,$3,$4,$5,$6)",
+          [matchId, p.playerId, coins, xp, delta,gems],
         );
       }
     });

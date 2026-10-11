@@ -1,3 +1,5 @@
+import { revokeApple } from "./apple";
+import { initializeInventory, starters, requireOwned, questState } from "./economy";
 import { Injectable } from "@nestjs/common";
 import { Request } from "express";
 import { db, redis, key, get, set, transaction } from "./db";
@@ -7,6 +9,7 @@ import { fail, hash, id, token, rank, secretEqual } from "./common";
 export class AuthService {
   async guest(nickname: string, characterId: string) {
     const playerId = id();
+    if (!starters.includes("char:"+characterId)) characterId="kai";
     return transaction(async (c) => {
       await c.query(
         "INSERT INTO players(id,nickname,character_id) VALUES($1,$2,$3)",
@@ -17,6 +20,7 @@ export class AuthService {
       ]);
       await c.query("INSERT INTO ratings(player_id) VALUES($1)", [playerId]);
       await c.query("INSERT INTO balances(player_id) VALUES($1)", [playerId]);
+      await initializeInventory(c,playerId);
       const refreshToken = token();
       await c.query(
         "INSERT INTO guest_refresh(token_hash,player_id,expires_at) VALUES($1,$2,now()+$3::int*interval '1 day')",
@@ -25,7 +29,7 @@ export class AuthService {
       return this.session(playerId, refreshToken);
     });
   }
-  private async session(playerId: string, refreshToken: string) {
+  async session(playerId: string, refreshToken: string) {
     const accessToken = token();
     await redis.set(key("access:" + hash(accessToken)), playerId, {
       EX: config.ACCESS_TOKEN_SECONDS,
@@ -49,7 +53,7 @@ export class AuthService {
         const retry = await get<{ playerId: string; refreshToken: string }>(
           "refresh-retry:" + previous,
         );
-        if (retry) return this.session(retry.playerId, retry.refreshToken);
+        if (retry && (await c.query("SELECT 1 FROM guest_refresh WHERE token_hash=$1 AND revoked_at IS NULL AND expires_at>now()",[hash(retry.refreshToken)])).rowCount) return this.session(retry.playerId, retry.refreshToken);
         fail(401, "UNAUTHENTICATED", "Guest session expired.");
       }
       const next = token(),
@@ -59,8 +63,8 @@ export class AuthService {
         [previous],
       );
       await c.query(
-        "INSERT INTO guest_refresh(token_hash,player_id,expires_at) VALUES($1,$2,now()+$3::int*interval '1 day')",
-        [hash(next), playerId, config.REFRESH_TOKEN_DAYS],
+        "INSERT INTO guest_refresh(token_hash,player_id,expires_at,family_id) VALUES($1,$2,now()+$3::int*interval '1 day',$4)",
+        [hash(next), playerId, config.REFRESH_TOKEN_DAYS,r.rows[0].family_id],
       );
       await set(
         "refresh-retry:" + previous,
@@ -92,6 +96,7 @@ export class AuthService {
     const active = await db.query(
       "SELECT 1 FROM match_participants p JOIN matches m ON m.id=p.match_id WHERE p.player_id=$1 AND m.state NOT IN ('FINISHED','FAILED') LIMIT 1", [playerId]);
     if (active.rowCount) fail(409, "MATCH_FINISHING", "Your online match is still finishing. Retry when it has ended.");
+    await revokeApple(playerId);
     const history = await db.query("SELECT match_id FROM match_participants WHERE player_id=$1", [playerId]);
     const refresh = await db.query("SELECT token_hash FROM guest_refresh WHERE player_id=$1", [playerId]);
     await transaction(async c => {
@@ -175,7 +180,7 @@ export class AuthService {
   }
   async me(playerId: string) {
     const r = await db.query(
-      "SELECT p.*,r.rating,s.matches,s.wins,s.losses,s.draws,s.goals,s.assists,s.mvp_count,b.coins,b.xp FROM players p JOIN ratings r ON r.player_id=p.id JOIN player_stats s ON s.player_id=p.id JOIN balances b ON b.player_id=p.id WHERE p.id=$1",
+      "SELECT p.*,r.rating,s.matches,s.wins,s.losses,s.draws,s.goals,s.assists,s.mvp_count,b.coins,b.gems,b.xp FROM players p JOIN ratings r ON r.player_id=p.id JOIN player_stats s ON s.player_id=p.id JOIN balances b ON b.player_id=p.id WHERE p.id=$1",
       [playerId],
     );
     if (!r.rowCount) fail(401, "UNAUTHENTICATED", "Account not found.");
@@ -186,6 +191,13 @@ export class AuthService {
       activeQueueId: (await redis.get(key("active-queue:" + playerId))) || "",
       level: 1 + Math.floor(row.xp / 500),
       coins: row.coins,
+      gems: row.gems,
+      age: row.age,
+      onboardingComplete: row.onboarding_complete,
+      providers: (await db.query("SELECT provider FROM account_identities WHERE player_id=$1",[playerId])).rows.map(x=>x.provider),
+      ownedIds: (await db.query("SELECT item_id FROM inventory WHERE player_id=$1 ORDER BY item_id",[playerId])).rows.map(x=>x.item_id),
+      selectedSkin: row.selected_skin, selectedEmote: row.selected_emote,
+      quests: await questState(playerId),
       xp: row.xp,
       matches: row.matches,
       wins: row.wins,
@@ -199,6 +211,7 @@ export class AuthService {
   async profile(playerId: string, nickname: string, characterId: string) {
     if (await redis.exists(key("active-match:" + playerId)))
       fail(409, "IN_MATCH", "Change character after the match.");
+    await requireOwned(playerId,"char:"+characterId);
     await db.query(
       "UPDATE players SET nickname=$2,character_id=$3 WHERE id=$1",
       [playerId, nickname, characterId],

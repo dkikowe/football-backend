@@ -168,7 +168,8 @@ test(
               }),
             );
           const me = await req("/v1/me", { auth: users[0] });
-          assert.equal(me.coins, 0);
+          assert.equal(me.coins, 1000);
+          assert.equal(me.gems, 0);
           assert.equal(me.rating, 1000);
           assert.equal(me.status, "ONLINE");
           assert.equal((await req("/v1/regions")).regions[0].id, "local");
@@ -556,7 +557,8 @@ test(
           const me = await req("/v1/me", { auth: users[0] });
           assert.equal(me.matches, 1);
           assert.equal(me.wins, 1);
-          assert.equal(me.coins, 60);
+          assert.equal(me.coins, 1060);
+          assert.equal(me.gems, 3);
           assert.equal(me.rating, 1024);
           assert.equal(me.activeMatchId, "");
           const saved = await req(
@@ -612,7 +614,8 @@ test(
           );
           const me = await req("/v1/me", { auth: users[0] });
           assert.equal(me.matches, 1);
-          assert.equal(me.coins, 60);
+          assert.equal(me.coins, 1060);
+          assert.equal(me.gems, 3);
         },
       );
       await t.test(
@@ -626,7 +629,7 @@ test(
           );
           await post(
             "/v1/rooms/join",
-            { code: r.code, characterId: "max" },
+            { code: r.code, characterId: "leo" },
             users[7],
           );
           await post("/v1/rooms/" + r.code + "/start", {}, users[7], 403);
@@ -653,13 +656,13 @@ test(
         },
       );
       await t.test("private 1v1 excludes empty slots, enforces two players and compatible clients/servers", async () => {
-        const duelUsers = [await post("/v1/auth/guest", {nickname:"DUEL A", characterId:"kai"}), await post("/v1/auth/guest", {nickname:"DUEL B", characterId:"max"})];
+        const duelUsers = [await post("/v1/auth/guest", {nickname:"DUEL A", characterId:"kai"}), await post("/v1/auth/guest", {nickname:"DUEL B", characterId:"leo"})];
         await register(); // Older servers must never receive a duel allocation.
         const r = await post("/v1/rooms", {region:"local",characterId:"kai",duel:true}, duelUsers[0]);
         assert.equal(r.duel, true);
         await post("/v1/rooms/"+r.code+"/start", {}, duelUsers[0], 409);
-        await post("/v1/rooms/join", {code:r.code,characterId:"max"}, duelUsers[1], 409);
-        await post("/v1/rooms/join", {code:r.code,characterId:"max",supportsDuel:true}, duelUsers[1]);
+        await post("/v1/rooms/join", {code:r.code,characterId:"leo"}, duelUsers[1], 409);
+        await post("/v1/rooms/join", {code:r.code,characterId:"leo",supportsDuel:true}, duelUsers[1]);
         await post("/v1/rooms/join", {code:r.code,characterId:"kai",supportsDuel:true}, users[5], 409);
         await post("/v1/rooms/"+r.code+"/start", {}, duelUsers[1], 403);
         await post("/v1/rooms/"+r.code+"/start", {}, duelUsers[0], 503);
@@ -803,7 +806,8 @@ test(
           assert.equal(refreshed.playerId, users[0].playerId);
           const me = await req("/v1/me", { auth: refreshed });
           assert.equal(me.matches, 1);
-          assert.equal(me.coins, 60);
+          assert.equal(me.coins, 1060);
+          assert.equal(me.gems, 3);
           assert.equal(
             (await req("/v1/history", { auth: refreshed })).matches.length,
             1,
@@ -833,6 +837,43 @@ test(
           assert.equal((await inspect.query(`SELECT 1 FROM ${table} WHERE ${column}=$1`,[a.playerId])).rowCount,0);
         }} finally {await inspect.end();}
         for(const route of ["privacy","support"]){const r=await fetch(base+"/"+route);assert.equal(r.status,200);assert.match(r.headers.get("content-type"),/text\/html/);assert.match(await r.text(),/krutyev5@gmail.com/);}
+      });
+      await t.test("email account links guest, restores wallet after restart, and enforces server economy",async()=>{
+        const guest=await post("/v1/auth/guest",{nickname:"ACCOUNT TEST",characterId:"diego"});
+        let me=await req("/v1/me",{auth:guest});assert.equal(me.characterId,"kai");assert.equal(me.coins,1000);
+        await post("/v1/shop/select",{itemId:"char:diego"},guest,403);
+        await post("/v1/shop/buy",{itemId:"char:diego"},guest,409);
+        await post("/v1/shop/buy",{itemId:"skin:galaxy"},guest,409);
+        await post("/v1/shop/buy",{itemId:"emote:wave",price:0},guest,400);
+        const purchase=await Promise.all([post("/v1/shop/buy",{itemId:"emote:wave"},guest),post("/v1/shop/buy",{itemId:"emote:wave"},guest)]);
+        assert.equal(purchase[1].coins,750);assert.ok(purchase[1].ownedIds.includes("emote:wave"));
+        await Promise.all([post("/v1/quests/claim",{questId:"welcome"},guest),post("/v1/quests/claim",{questId:"welcome"},guest)]);
+        await post("/v1/quests/claim",{questId:"wins"},guest,409);
+        const credentials={email:"account@example.test",password:"fixture password 42!"};
+        const registered=await post("/v1/auth/register",credentials,guest);
+        assert.equal(registered.playerId,guest.playerId);
+        await post("/v1/me/onboarding",{nickname:"TEST PLAYER",age:24},registered);
+        await post("/v1/shop/select",{itemId:"emote:wave"},registered);
+        await post("/v1/auth/login",{...credentials,password:"wrong password"},null,401);
+        await post("/v1/auth/register",credentials,null,409);
+        const before=await req("/v1/me",{auth:registered});assert.equal(before.coins,825);assert.equal(before.gems,0);assert.equal(before.onboardingComplete,true);
+        assert.deepEqual(before.providers,["email"]);assert.equal(before.age,24);
+        await stop();await start();
+        const second=await post("/v1/auth/login",{...credentials,email:"ACCOUNT@EXAMPLE.TEST"});
+        assert.equal(second.playerId,guest.playerId);
+        const after=await req("/v1/me",{auth:second});assert.equal(after.coins,825);assert.equal(after.nickname,"TEST PLAYER");assert.equal(after.selectedEmote,"emote:wave");
+        assert.deepEqual(after.ownedIds,before.ownedIds);
+        const other=await post("/v1/auth/register",{email:"other@example.test",password:"another password 24!"});
+        assert.notEqual(other.playerId,second.playerId);assert.equal((await req("/v1/me",{auth:other})).coins,1000);
+        await post("/v1/shop/select",{itemId:"emote:wave"},other,403);
+        await post("/v1/auth/logout",{refreshToken:second.refreshToken},second);
+        await req("/v1/me",{auth:second,status:401});await post("/v1/auth/refresh",{refreshToken:second.refreshToken},null,401);
+        const again=await post("/v1/auth/login",credentials);assert.equal(again.playerId,guest.playerId);
+        const inspect=new pg.Pool({connectionString:dbUrl.toString()});
+        try{const row=(await inspect.query("SELECT password_hash FROM account_identities WHERE player_id=$1",[again.playerId])).rows[0];assert.match(row.password_hash,/^scrypt1:/);assert.ok(!row.password_hash.includes(credentials.password));}finally{await inspect.end();}
+        await req("/v1/me",{method:"DELETE",auth:again});
+        await post("/v1/auth/login",credentials,null,401);
+        await req("/v1/me",{method:"DELETE",auth:other});
       });
       await t.test(
         "random authorization headers cannot bypass guest rate limits",
