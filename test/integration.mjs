@@ -187,6 +187,31 @@ test(
           users[0] = newSession;
         },
       );
+      await t.test("nickname search handles substrings, case, Unicode and pending relationships without a lifecycle lock", async()=>{
+        const a=await post("/v1/auth/guest",{nickname:"Алекс Дидар",characterId:"kai"});
+        const b=await post("/v1/auth/guest",{nickname:"Alex.Didar",characterId:"leo"});
+        const c=await post("/v1/auth/guest",{nickname:"A_B Partner",characterId:"ryan"});
+        let found=await req("/v1/players?search="+encodeURIComponent("дидар"),{auth:users[0]});
+        assert.equal(found.players.find(p=>p.playerId===a.playerId)?.nickname,"Алекс Дидар");
+        found=await req("/v1/players?search="+encodeURIComponent("dIdAr"),{auth:users[0]});
+        assert.equal(found.players.find(p=>p.playerId===b.playerId)?.relationship,"none");
+        assert.equal((await req("/v1/players?search="+encodeURIComponent("A_B"),{auth:users[0]})).players.filter(p=>p.playerId===c.playerId).length,1);
+        assert.equal((await req("/v1/players?search="+encodeURIComponent("%%"),{auth:users[0]})).players.length,0);
+        await redis.set(prefix+"lock:lifecycle","held-by-match",{PX:3000});
+        const start=performance.now();
+        try {
+          await post("/v1/friends/requests",{playerId:b.playerId},a);
+          assert.ok(performance.now()-start<1000,"friend request must not wait for the match lifecycle lock");
+        } finally {await redis.del(prefix+"lock:lifecycle");}
+        const duplicates=await Promise.all(Array.from({length:6},()=>post("/v1/friends/requests",{playerId:b.playerId},a)));
+        assert.ok(duplicates.every(r=>r.relationship==="pending_sent"));
+        assert.equal((await post("/v1/friends/requests",{playerId:a.playerId},b)).relationship,"pending_received");
+        assert.equal((await req("/v1/friends",{auth:a})).sent.length,1);
+        assert.equal((await req("/v1/friends",{auth:b})).requests.length,1);
+        assert.equal((await req("/v1/players?search=Didar",{auth:a})).players.find(p=>p.playerId===b.playerId).relationship,"pending_sent");
+        await post("/v1/friends/requests/"+a.playerId+"/respond",{accept:true},b);
+        assert.equal((await req("/v1/players?search=Didar",{auth:a})).players.find(p=>p.playerId===b.playerId).relationship,"accepted");
+      });
       await t.test(
         "friends accept/decline; party invitations capped at three",
         async () => {
@@ -627,11 +652,18 @@ test(
             { region: "local", characterId: "kai" },
             users[6],
           );
-          await post(
-            "/v1/rooms/join",
-            { code: r.code, characterId: "leo" },
-            users[7],
-          );
+          await post("/v1/rooms/"+r.code+"/invites",{playerId:users[7].playerId},users[6],403);
+          await post("/v1/friends/requests",{playerId:users[7].playerId},users[6]);
+          await post("/v1/friends/requests/"+users[6].playerId+"/respond",{accept:true},users[7]);
+          await post("/v1/rooms/"+r.code+"/invites",{playerId:users[7].playerId},users[6]);
+          assert.equal((await req("/v1/rooms/invites",{auth:users[7]})).invites[0].code,r.code);
+          await post("/v1/rooms/"+r.code+"/invites/respond",{accept:false,characterId:"leo",supportsDuel:true},users[7]);
+          assert.equal((await req("/v1/rooms/invites",{auth:users[7]})).invites.length,0);
+          await post("/v1/rooms/"+r.code+"/invites/respond",{accept:true,characterId:"leo",supportsDuel:true},users[7],403);
+          await post("/v1/rooms/"+r.code+"/invites",{playerId:users[7].playerId},users[6]);
+          await post("/v1/rooms/"+r.code+"/invites/respond",{accept:true,characterId:"leo",supportsDuel:true},users[7]);
+          assert.equal((await req("/v1/me",{auth:users[7]})).activeRoomCode,r.code);
+          await post("/v1/matchmaking",{region:"local",rttMs:30,characterId:"leo"},users[7],409);
           await post("/v1/rooms/" + r.code + "/start", {}, users[7], 403);
           const started = await post(
             "/v1/rooms/" + r.code + "/start",
@@ -643,6 +675,8 @@ test(
           });
           assert.equal(c.slots.length, 6);
           assert.equal(c.slots.filter((x) => x.isBot).length, 4);
+          assert.equal((await req("/v1/me",{auth:users[6]})).activeRoomCode,r.code);
+          await post("/v1/rooms/"+r.code+"/return",{},users[6],409);
           await internal("/internal/servers/test-1/shutdown", {});
           servers.delete("test-1");
           assert.equal(
@@ -653,6 +687,13 @@ test(
             ).state,
             "FAILED",
           );
+          const returned=await post("/v1/rooms/"+r.code+"/return",{},users[6]);
+          assert.equal(returned.state,"READY");assert.equal(returned.matchId,"");assert.equal(returned.allReturned,false);
+          await post("/v1/rooms/"+r.code+"/start",{},users[6],409);
+          assert.equal((await post("/v1/rooms/"+r.code+"/return",{},users[7])).allReturned,true);
+          await req("/v1/rooms/"+r.code,{method:"DELETE",auth:users[6]});
+          assert.equal((await req("/v1/rooms/"+r.code,{auth:users[7]})).leaderId,users[7].playerId);
+          await req("/v1/rooms/"+r.code,{method:"DELETE",auth:users[7]});
         },
       );
       await t.test("private 1v1 excludes empty slots, enforces two players and compatible clients/servers", async () => {
@@ -678,7 +719,26 @@ test(
           participants:c.slots.filter(x=>x.playerId).map(x=>({playerId:x.playerId,slot:x.slot,goals:x.slot===0?1:0,assists:0,shots:1,passes:0,tackles:0,possessionSeconds:10,isMvp:x.slot===0}))
         });
         assert.equal((await req("/v1/matches/"+started.matchId+"/results", {auth:duelUsers[0]})).state,"FINISHED");
+        let returned=await post("/v1/rooms/"+r.code+"/return",{},duelUsers[0]);
+        assert.equal(returned.previousMatchId,started.matchId);assert.equal(returned.members.length,2);assert.equal(returned.allReturned,false);
+        await post("/v1/rooms/"+r.code+"/start",{},duelUsers[0],409);
+        returned=await post("/v1/rooms/"+r.code+"/return",{},duelUsers[1]);assert.equal(returned.allReturned,true);
+        await ready();
+        const round2=await post("/v1/rooms/"+r.code+"/start",{},duelUsers[0]);assert.notEqual(round2.matchId,started.matchId);
+        // An old immutable result replay must not reset the new round's lobby state.
+        await internal("/internal/matches/"+started.matchId+"/results", {
+          serverId:"test-1",matchSecret:assignment.matchSecret,blueScore:1,redScore:0,durationSeconds:90,
+          participants:c.slots.filter(x=>x.playerId).map(x=>({playerId:x.playerId,slot:x.slot,goals:x.slot===0?1:0,assists:0,shots:1,passes:0,tackles:0,possessionSeconds:10,isMvp:x.slot===0}))
+        });
+        assert.equal((await req("/v1/rooms/"+r.code,{auth:duelUsers[1]})).matchId,round2.matchId);
         await internal("/internal/servers/test-1/shutdown", {});servers.delete("test-1");
+        await post("/v1/rooms/"+r.code+"/return",{},duelUsers[0]);
+        await req("/v1/rooms/"+r.code+"/members/"+duelUsers[0].playerId,{method:"DELETE",auth:duelUsers[1],status:403});
+        const alone=await req("/v1/rooms/"+r.code+"/members/"+duelUsers[1].playerId,{method:"DELETE",auth:duelUsers[0]});
+        assert.equal(alone.members.length,1);assert.equal(alone.allReturned,true);
+        assert.equal((await req("/v1/me",{auth:duelUsers[1]})).activeRoomCode,"");
+        await post("/v1/rooms/"+r.code+"/start",{},duelUsers[0],409);
+        await req("/v1/rooms/"+r.code,{method:"DELETE",auth:duelUsers[0]});
       });
       await t.test(
         "queue cancel and capacity timeout are finite; offline local state never consulted",

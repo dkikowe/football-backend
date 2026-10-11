@@ -46,6 +46,10 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
       members = party.members.map((x) => x.playerId);
     }
     await this.auth.available(members);
+    for (const pid of members) {
+      const code = await redis.get(key("active-room:" + pid));
+      if (code && await redis.exists(key("room:" + code))) fail(409,"IN_ROOM","Leave your private room before searching.");
+    }
     await db.query("UPDATE players SET character_id=$2 WHERE id=$1", [
       playerId,
       input.characterId,
@@ -553,12 +557,13 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
       leaderId: playerId,
       region,
       members: [playerId],
+      returnedPlayerIds: [playerId],
+      previousMatchId: "",
       state: "READY",
       matchId: "",
       created: Date.now(),
     };
-    await set("room:" + code, room, 1800);
-    await redis.set(key("active-room:" + playerId), code, { EX: 1800 });
+    await this.saveRoom(room);
     return this.roomStatus(playerId, code);
   }
   async joinRoom(playerId: string, code: string, characterId: string, supportsDuel = false) {
@@ -574,13 +579,13 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
     if (room.members.length >= (room.duel ? 2 : 6))
       fail(409, "ROOM_FULL", room.duel ? "1v1 room already has two players." : "Room already has six players.");
     await requireOwned(playerId,"char:"+characterId);
+    room.returnedPlayerIds = [...(room.returnedPlayerIds ?? room.members), playerId];
     room.members.push(playerId);
     await db.query("UPDATE players SET character_id=$2 WHERE id=$1", [
       playerId,
       characterId,
     ]);
-    await set("room:" + code, room, 1800);
-    await redis.set(key("active-room:" + playerId), code, { EX: 1800 });
+    await this.saveRoom(room);
     return this.roomStatus(playerId, code);
   }
   async roomStatus(playerId: string, code: string) {
@@ -588,6 +593,11 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
     if (!r) fail(404, "NOT_FOUND", "Room expired.");
     if (!r.members.includes(playerId))
       fail(403, "FORBIDDEN", "Join room first.");
+    // Extend existing keys only: read polling must not overwrite a concurrent start/leave.
+    const ttl=r.matchId ? config.MATCH_TIMEOUT_SECONDS+1800 : 1800;
+    const keep=redis.multi().expire(key("room:"+code),ttl);
+    for(const pid of r.members)keep.expire(key("active-room:"+pid),ttl);
+    await keep.exec();
     return {
       duel: r.duel ?? false,
       code: r.code,
@@ -596,13 +606,84 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
       state: r.state,
       members: await this.auth.summaries(r.members),
       matchId: r.matchId,
+      previousMatchId: r.previousMatchId || "",
+      returnedPlayerIds: r.returnedPlayerIds ?? r.members,
+      allReturned: r.members.every(id => (r.returnedPlayerIds ?? r.members).includes(id)),
     };
+  }
+  private async saveRoom(room: Room) {
+    // The room survives gameplay so clients can return without rebuilding membership.
+    const ttl = room.matchId ? config.MATCH_TIMEOUT_SECONDS + 1800 : 1800;
+    const multi = redis.multi().set(key("room:" + room.code), JSON.stringify(room), {EX:ttl});
+    for (const pid of room.members) multi.set(key("active-room:" + pid), room.code, {EX:ttl});
+    await multi.exec();
+  }
+  async returnRoom(playerId: string, code: string) {
+    const room = await get<Room>("room:" + code);
+    if (!room || !room.members.includes(playerId)) fail(404,"NOT_FOUND","Room no longer exists.");
+    if (room.matchId) {
+      // SQL is authoritative if the result committed before Redis was reconciled.
+      const a=await get<Allocation>("match:"+room.matchId);
+      if(a) await this.reconcileFinal(a);
+      const current=await get<Room>("room:"+code);
+      if(current?.matchId)fail(409,"MATCH_NOT_FINISHED","Wait for the match to finish before returning.");
+      if(!current)fail(404,"NOT_FOUND","Room no longer exists.");
+      Object.assign(room,current);
+    }
+    await this.auth.available([playerId]);
+    room.returnedPlayerIds=[...new Set([...(room.returnedPlayerIds ?? room.members),playerId])];
+    await this.saveRoom(room);
+    return this.roomStatus(playerId,code);
+  }
+  async roomInvites(playerId:string) {
+    const inbox=key("room-invites:"+playerId);
+    await redis.zRemRangeByScore(inbox,0,Date.now());
+    const codes=await redis.zRange(inbox,0,99);
+    const invites=await Promise.all(codes.map(async code=>{
+      const [r,invitation]=await Promise.all([get<Room>("room:"+code),get<{inviterId:string}>("room-invite:"+code+":"+playerId)]);
+      if(!r || !invitation || !r.members.includes(invitation.inviterId) || r.state!=="READY" || r.members.includes(playerId) || r.members.length>=(r.duel?2:6))return null;
+      const sender=(await this.auth.summaries([invitation.inviterId]))[0];
+      if(!sender)return null;
+      return {code:r.code,leaderId:r.leaderId,nickname:sender.nickname,duel:r.duel??false,region:r.region,memberCount:r.members.length,capacity:r.duel?2:6};
+    }));
+    return {invites:invites.filter(Boolean)};
+  }
+  async inviteRoom(playerId:string,code:string,target:string) {
+    const r=await get<Room>("room:"+code);
+    if(!r || !r.members.includes(playerId))fail(403,"FORBIDDEN","Join the room before inviting.");
+    if(r.state!=="READY")fail(409,"ROOM_STARTED","Invite friends between matches.");
+    if(r.members.includes(target))return {ok:true};
+    if(r.members.length>=(r.duel?2:6))fail(409,"ROOM_FULL","Room is full.");
+    if(!(await db.query("SELECT 1 FROM friendships WHERE state='ACCEPTED' AND ((requester_id=$1 AND recipient_id=$2) OR (requester_id=$2 AND recipient_id=$1))",[playerId,target])).rowCount)fail(403,"FORBIDDEN","Invite an accepted friend.");
+    await set("room-invite:"+code+":"+target,{inviterId:playerId},600);
+    await redis.zAdd(key("room-invites:"+target),{value:code,score:Date.now()+600000});
+    await redis.expire(key("room-invites:"+target),600);
+    await this.saveRoom(r);
+    return {ok:true};
+  }
+  async respondRoomInvite(playerId:string,code:string,accept:boolean,characterId:string,supportsDuel:boolean) {
+    if(!accept) {
+      await redis.del(key("room-invite:"+code+":"+playerId));
+      await redis.zRem(key("room-invites:"+playerId),code);
+      return {code:"",members:[],matchId:"",state:"",leaderId:"",region:"",duel:false,returnedPlayerIds:[],previousMatchId:"",allReturned:true};
+    }
+    const invitation=await get<{inviterId:string}>("room-invite:"+code+":"+playerId);
+    const room=await get<Room>("room:"+code);
+    if(room?.members.includes(playerId))return this.roomStatus(playerId,code);
+    if(!invitation || !room?.members.includes(invitation.inviterId))fail(403,"INVITE_EXPIRED","Invitation expired.");
+    if(!(await db.query("SELECT 1 FROM friendships WHERE state='ACCEPTED' AND ((requester_id=$1 AND recipient_id=$2) OR (requester_id=$2 AND recipient_id=$1))",[playerId,invitation.inviterId])).rowCount)fail(403,"INVITE_EXPIRED","Invitation is no longer available.");
+    const joined=await this.joinRoom(playerId,code,characterId,supportsDuel);
+    await redis.del(key("room-invite:"+code+":"+playerId));
+    await redis.zRem(key("room-invites:"+playerId),code);
+    return joined;
   }
   async startRoom(playerId: string, code: string) {
     const room = await get<Room>("room:" + code);
     if (!room || room.leaderId !== playerId)
       fail(403, "FORBIDDEN", "Only room leader can start.");
     if (room.matchId) return this.roomStatus(playerId, code);
+    if (!room.members.every(id => (room.returnedPlayerIds ?? room.members).includes(id)))
+      fail(409,"WAITING_FOR_PLAYERS","Wait for every player to return to the room.");
     await this.auth.available(room.members);
     if (room.duel && room.members.length !== 2)
       fail(409, "NEED_OPPONENT", "Invite one friend before starting 1v1.");
@@ -615,23 +696,44 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
     const a = await this.allocate(server, teams, room.duel ? "PRIVATE_1V1" : "PRIVATE", [], room.duel);
     room.matchId = a.matchId;
     room.state = "CONNECTING";
-    await set("room:" + code, room, config.MATCH_TIMEOUT_SECONDS + 300);
-    for (const pid of room.members) await redis.del(key("active-room:" + pid));
+    room.returnedPlayerIds=[];
+    a.roomCode=code;
+    await set("match:"+a.matchId,a,config.MATCH_TIMEOUT_SECONDS+3600);
+    await this.saveRoom(room);
     return this.roomStatus(playerId, code);
   }
   async leaveRoom(playerId: string, code: string) {
     const room = await get<Room>("room:" + code);
     if (!room || !room.members.includes(playerId))
       fail(404, "NOT_FOUND", "Room not found.");
-    if (room.state !== "READY") fail(409, "ROOM_STARTED", "Use leave match.");
+    if (room.state !== "READY") {
+      const a=await get<Allocation>("match:"+room.matchId);
+      if(a)await this.reconcileFinal(a);
+      const current=await get<Room>("room:"+code);
+      if(current)Object.assign(room,current);
+      if(room.state!=="READY" && !a?.leases.find(x=>x.playerId===playerId)?.voluntary)fail(409,"ROOM_STARTED","Leave the match before leaving its room.");
+    }
     room.members = room.members.filter((x) => x !== playerId);
+    room.returnedPlayerIds = (room.returnedPlayerIds ?? room.members).filter(id=>id!==playerId);
     await redis.del(key("active-room:" + playerId));
     if (!room.members.length) await redis.del(key("room:" + code));
     else {
       if (room.leaderId === playerId) room.leaderId = room.members[0];
-      await set("room:" + code, room, 1800);
+      await this.saveRoom(room);
     }
     return { ok: true };
+  }
+  async removeRoomMember(playerId:string,code:string,target:string) {
+    const room=await get<Room>("room:"+code);
+    if(!room || room.leaderId!==playerId)fail(403,"FORBIDDEN","Only the room leader can remove players.");
+    if(room.matchId)fail(409,"ROOM_STARTED","Wait until the match has finished.");
+    if(target===playerId)fail(400,"VALIDATION_ERROR","Use Leave Room to leave.");
+    if(!room.members.includes(target))return this.roomStatus(playerId,code);
+    room.members=room.members.filter(id=>id!==target);
+    room.returnedPlayerIds=(room.returnedPlayerIds??room.members).filter(id=>id!==target);
+    if(await redis.get(key("active-room:"+target))===code)await redis.del(key("active-room:"+target));
+    await this.saveRoom(room);
+    return this.roomStatus(playerId,code);
   }
   async results(playerId: string, matchId: string) {
     if (
@@ -823,6 +925,17 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
         await redis.del(key("active-match:" + l.playerId));
       if (l.ticket) await redis.del(key("ticket:" + hash(l.ticket)));
       await redis.del(key("reconnect-token:" + a.matchId + ":" + l.playerId));
+    }
+    if (a.roomCode) {
+      const room=await get<Room>("room:"+a.roomCode);
+      // A replay of a previous result must never reset a subsequent round.
+      if(room?.matchId===a.matchId) {
+        room.previousMatchId=a.matchId;
+        room.matchId="";
+        room.state="READY";
+        room.returnedPlayerIds=[];
+        await this.saveRoom(room);
+      }
     }
     const server = await get<Server>("server:" + a.serverId);
     if (server?.matchId === a.matchId) {

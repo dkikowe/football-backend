@@ -161,8 +161,8 @@ export class ApiController {
     @Req() req: Request,
     @Query("search") query: unknown,
   ) {
-    await this.auth.auth(req);
-    return this.auth.search(parse(z.string().trim().min(2).max(24), query));
+    const pid = await this.auth.auth(req);
+    return this.auth.search(parse(z.string().trim().min(2).max(24), query), pid);
   }
   @Get("v1/leaderboard") async leaderboard(@Req() req: Request) {
     await this.auth.auth(req);
@@ -180,7 +180,7 @@ export class ApiController {
   ) {
     const pid = await this.auth.auth(req),
       b = parse(strict({ playerId: uuid }), body);
-    return lock(() => this.social.request(pid, b.playerId));
+    return this.social.request(pid, b.playerId);
   }
   @Post("v1/friends/requests/:playerId/respond") async friendRespond(
     @Req() req: Request,
@@ -190,7 +190,7 @@ export class ApiController {
     const pid = await this.auth.auth(req),
       b = parse(strict({ accept: z.boolean() }), body);
     parse(uuid, requester);
-    return lock(() => this.social.respond(pid, requester, b.accept));
+    return this.social.respond(pid, requester, b.accept);
   }
   @Delete("v1/friends/:playerId") async removeFriend(
     @Req() req: Request,
@@ -198,7 +198,7 @@ export class ApiController {
   ) {
     const pid = await this.auth.auth(req);
     parse(uuid, target);
-    return lock(() => this.social.removeFriend(pid, target));
+    return this.social.removeFriend(pid, target);
   }
   @Get("v1/party") async party(@Req() req: Request) {
     return this.social.party(await this.auth.auth(req));
@@ -281,6 +281,21 @@ export class ApiController {
       b = parse(strict({ code, characterId: character, supportsDuel: z.boolean().optional() }), body);
     return lock(() => this.matches.joinRoom(pid, b.code, b.characterId, b.supportsDuel));
   }
+  @Get("v1/rooms/invites") async roomInvites(@Req() req:Request) {
+    return this.matches.roomInvites(await this.auth.auth(req));
+  }
+  @Post("v1/rooms/:code/invites") async inviteRoom(@Req() req:Request,@Param("code") roomCode:string,@Body() body:unknown) {
+    const pid=await this.auth.auth(req),b=parse(strict({playerId:uuid}),body);
+    return lock(()=>this.matches.inviteRoom(pid,parse(code,roomCode),b.playerId));
+  }
+  @Post("v1/rooms/:code/invites/respond") async respondRoomInvite(@Req() req:Request,@Param("code") roomCode:string,@Body() body:unknown) {
+    const pid=await this.auth.auth(req),b=parse(strict({accept:z.boolean(),characterId:character,supportsDuel:z.boolean().optional()}),body);
+    return lock(()=>this.matches.respondRoomInvite(pid,parse(code,roomCode),b.accept,b.characterId,b.supportsDuel??false));
+  }
+  @Post("v1/rooms/:code/return") async returnRoom(@Req() req:Request,@Param("code") roomCode:string) {
+    const pid=await this.auth.auth(req);
+    return lock(()=>this.matches.returnRoom(pid,parse(code,roomCode)));
+  }
   @Get("v1/rooms/:code") async room(
     @Req() req: Request,
     @Param("code") roomCode: string,
@@ -294,6 +309,10 @@ export class ApiController {
   ) {
     const pid = await this.auth.auth(req);
     return lock(() => this.matches.startRoom(pid, parse(code, roomCode)));
+  }
+  @Delete("v1/rooms/:code/members/:playerId") async removeRoomMember(@Req() req:Request,@Param("code") roomCode:string,@Param("playerId") target:string) {
+    const pid=await this.auth.auth(req);
+    return lock(()=>this.matches.removeRoomMember(pid,parse(code,roomCode),parse(uuid,target)));
   }
   @Delete("v1/rooms/:code") async leaveRoom(
     @Req() req: Request,

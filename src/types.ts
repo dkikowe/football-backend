@@ -40,6 +40,7 @@ export interface Lease {
   ticket: string;
 }
 export interface Allocation {
+  roomCode?: string;
   matchId: string;
   matchSecret: string;
   serverId: string;
@@ -53,6 +54,8 @@ export interface Allocation {
   queueIds: string[];
 }
 export interface Room {
+  returnedPlayerIds?: string[];
+  previousMatchId?: string;
   duel?: boolean;
   code: string;
   leaderId: string;

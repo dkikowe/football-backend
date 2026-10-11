@@ -163,20 +163,19 @@ export class AuthService {
       status: await this.status(row.id),
     };
   }
+  async summarizeRows(rows: any[]) {
+    if (!rows.length) return [];
+    // One Redis round trip for the whole list, including offline users.
+    const states = await redis.mGet(rows.flatMap(r => [key("active-match:" + r.id), key("presence:" + r.id)]));
+    return rows.map((r, i) => ({ playerId: r.id, nickname: r.nickname, characterId: r.character_id,
+      rank: rank(Number(r.rating ?? 1000)), rating: Number(r.rating ?? 1000),
+      status: states[i * 2] ? "IN_MATCH" : states[i * 2 + 1] ? "ONLINE" : "OFFLINE" }));
+  }
   async summaries(ids: string[]) {
     if (!ids.length) return [];
-    const rows = (
-      await db.query(
-        "SELECT p.*,r.rating FROM players p JOIN ratings r ON r.player_id=p.id WHERE p.id=ANY($1::uuid[])",
-        [ids],
-      )
-    ).rows;
-    return Promise.all(
-      ids
-        .map((x) => rows.find((r) => r.id === x))
-        .filter(Boolean)
-        .map((x) => this.summary(x)),
-    );
+    const rows = (await db.query("SELECT p.*,r.rating FROM players p JOIN ratings r ON r.player_id=p.id WHERE p.id=ANY($1::uuid[])", [ids])).rows;
+    const byId = new Map(rows.map(r => [r.id, r]));
+    return this.summarizeRows(ids.map(id => byId.get(id)).filter(Boolean));
   }
   async me(playerId: string) {
     const r = await db.query(
@@ -189,6 +188,7 @@ export class AuthService {
       ...(await this.summary(row)),
       activeMatchId: (await redis.get(key("active-match:" + playerId))) || "",
       activeQueueId: (await redis.get(key("active-queue:" + playerId))) || "",
+      activeRoomCode: (await redis.get(key("active-room:" + playerId))) || "",
       level: 1 + Math.floor(row.xp / 500),
       coins: row.coins,
       gems: row.gems,
@@ -226,14 +226,18 @@ export class AuthService {
         fail(409, "ALREADY_QUEUED", "A player is already searching.");
     }
   }
-  async search(search: string) {
-    const rows = (
-      await db.query(
-        "SELECT p.*,r.rating FROM players p JOIN ratings r ON r.player_id=p.id WHERE p.nickname ILIKE $1 ESCAPE '\\' ORDER BY p.nickname LIMIT 20",
-        [search.replace(/[\\%_]/g, "\\$&") + "%"],
-      )
-    ).rows;
-    return { players: await Promise.all(rows.map((r) => this.summary(r))) };
+  async search(search: string, playerId: string) {
+    const term = search.trim().normalize("NFKC").replace(/[\\%_]/g, "\\$&");
+    const rows = (await db.query(`SELECT p.*,r.rating,
+      CASE WHEN f.state='ACCEPTED' THEN 'accepted' WHEN f.requester_id=$3 THEN 'pending_sent'
+           WHEN f.recipient_id=$3 THEN 'pending_received' ELSE 'none' END relationship
+      FROM players p JOIN ratings r ON r.player_id=p.id
+      LEFT JOIN friendships f ON (f.requester_id=$3 AND f.recipient_id=p.id) OR (f.recipient_id=$3 AND f.requester_id=p.id)
+      WHERE p.id<>$3 AND p.nickname ILIKE $1 ESCAPE '\\'
+      ORDER BY CASE WHEN lower(p.nickname)=lower($4) THEN 0 WHEN p.nickname ILIKE $2 ESCAPE '\\' THEN 1 ELSE 2 END,
+      lower(p.nickname),p.id LIMIT 20`, ["%" + term + "%", term + "%", playerId, search.trim().normalize("NFKC")])).rows;
+    const players = await this.summarizeRows(rows);
+    return { players: players.map((p,i) => ({...p,relationship:rows[i].relationship})) };
   }
   async leaderboard() {
     return {

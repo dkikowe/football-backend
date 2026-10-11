@@ -6,73 +6,49 @@ import { fail, id } from "./common";
 export class SocialService {
   constructor(private readonly auth: AuthService) {}
   async friends(playerId: string) {
-    const rows = (
-      await db.query(
-        "SELECT * FROM friendships WHERE requester_id=$1 OR recipient_id=$1",
-        [playerId],
-      )
-    ).rows;
-    const friends = rows
-        .filter((r) => r.state === "ACCEPTED")
-        .map((r) =>
-          r.requester_id === playerId ? r.recipient_id : r.requester_id,
-        ),
-      requests = rows
-        .filter((r) => r.state === "PENDING" && r.recipient_id === playerId)
-        .map((r) => r.requester_id);
-    const recent = (
-      await db.query(
-        "SELECT DISTINCT other.player_id FROM match_participants mine JOIN matches m ON m.id=mine.match_id JOIN match_participants other ON other.match_id=mine.match_id WHERE mine.player_id=$1 AND other.player_id IS NOT NULL AND other.player_id<>$1 AND m.created_at>now()-interval '30 days' LIMIT 20",
-        [playerId],
-      )
-    ).rows.map((r) => r.player_id);
-    return {
-      friends: await this.auth.summaries(friends),
-      requests: await this.auth.summaries(requests),
-      recent: await this.auth.summaries(recent),
-    };
+    const [relationships, matches] = await Promise.all([
+      db.query("SELECT * FROM friendships WHERE requester_id=$1 OR recipient_id=$1", [playerId]),
+      db.query("SELECT other.player_id,max(m.created_at) last_played FROM match_participants mine JOIN matches m ON m.id=mine.match_id JOIN match_participants other ON other.match_id=mine.match_id WHERE mine.player_id=$1 AND other.player_id IS NOT NULL AND other.player_id<>$1 AND m.created_at>now()-interval '30 days' GROUP BY other.player_id ORDER BY last_played DESC LIMIT 20", [playerId])
+    ]);
+    const rows = relationships.rows;
+    const ids = (state: string, incoming = false) => rows.filter(r => r.state===state && (!incoming || r.recipient_id===playerId)).map(r => r.requester_id===playerId ? r.recipient_id : r.requester_id);
+    const friends=ids("ACCEPTED"), requests=ids("PENDING",true), sent=rows.filter(r=>r.state==="PENDING" && r.requester_id===playerId).map(r=>r.recipient_id), recent=matches.rows.map(r=>r.player_id);
+    const summaries=await this.auth.summaries([...new Set([...friends,...requests,...sent,...recent])]);
+    const lookup=new Map(summaries.map(p=>[p.playerId,p]));
+    const select=(ids:string[])=>ids.map(id=>lookup.get(id)).filter(Boolean);
+    return {friends:select(friends),requests:select(requests),sent:select(sent),recent:select(recent)};
+  }
+  // Sorted row locks serialize just these two users, rather than every match in the game.
+  private async friendship<T>(playerId:string,target:string,fn:(c:import("pg").PoolClient)=>Promise<T>) {
+    if(playerId===target)fail(400,"VALIDATION_ERROR","Cannot add yourself.");
+    return transaction(async c=>{
+      const users=await c.query("SELECT id FROM players WHERE id=ANY($1::uuid[]) ORDER BY id FOR UPDATE",[[playerId,target]]);
+      if(users.rowCount!==2)fail(404,"NOT_FOUND","Player not found.");
+      return fn(c);
+    });
   }
   async request(playerId: string, target: string) {
-    if (playerId === target)
-      fail(400, "VALIDATION_ERROR", "Cannot add yourself.");
-    if (
-      !(await db.query("SELECT 1 FROM players WHERE id=$1", [target])).rowCount
-    )
-      fail(404, "NOT_FOUND", "Player not found.");
-    if (
-      (
-        await db.query(
-          "SELECT count(*) FROM friendships WHERE (requester_id=$1 OR recipient_id=$1)",
-          [playerId],
-        )
-      ).rows[0].count >= 100
-    )
-      fail(409, "FRIEND_LIMIT", "Friend limit reached.");
-    await db.query(
-      "INSERT INTO friendships(requester_id,recipient_id,state) VALUES($1,$2,'PENDING') ON CONFLICT DO NOTHING",
-      [playerId, target],
-    );
-    return { ok: true };
+    return this.friendship(playerId,target,async c=>{
+      const existing=(await c.query("SELECT * FROM friendships WHERE (requester_id=$1 AND recipient_id=$2) OR (requester_id=$2 AND recipient_id=$1)",[playerId,target])).rows[0];
+      if(existing)return {ok:true,relationship:existing.state==="ACCEPTED"?"accepted":existing.requester_id===playerId?"pending_sent":"pending_received"};
+      const counts=(await c.query("SELECT p.id,count(f.requester_id)::integer count FROM players p LEFT JOIN friendships f ON f.requester_id=p.id OR f.recipient_id=p.id WHERE p.id=ANY($1::uuid[]) GROUP BY p.id",[[playerId,target]])).rows;
+      if(counts.some(r=>r.count>=100))fail(409,"FRIEND_LIMIT","Friend limit reached.");
+      await c.query("INSERT INTO friendships(requester_id,recipient_id,state) VALUES($1,$2,'PENDING')",[playerId,target]);
+      return {ok:true,relationship:"pending_sent"};
+    });
   }
   async respond(playerId: string, requester: string, accept: boolean) {
-    if (accept)
-      await db.query(
-        "UPDATE friendships SET state='ACCEPTED' WHERE requester_id=$1 AND recipient_id=$2 AND state='PENDING'",
-        [requester, playerId],
-      );
-    else
-      await db.query(
-        "DELETE FROM friendships WHERE requester_id=$1 AND recipient_id=$2 AND state='PENDING'",
-        [requester, playerId],
-      );
-    return { ok: true };
+    return this.friendship(playerId,requester,async c=>{
+      if(accept)await c.query("UPDATE friendships SET state='ACCEPTED' WHERE requester_id=$1 AND recipient_id=$2 AND state='PENDING'",[requester,playerId]);
+      else await c.query("DELETE FROM friendships WHERE requester_id=$1 AND recipient_id=$2 AND state='PENDING'",[requester,playerId]);
+      return {ok:true};
+    });
   }
   async removeFriend(playerId: string, target: string) {
-    await db.query(
-      "DELETE FROM friendships WHERE (requester_id=$1 AND recipient_id=$2) OR (requester_id=$2 AND recipient_id=$1)",
-      [playerId, target],
-    );
-    return { ok: true };
+    return this.friendship(playerId,target,async c=>{
+      await c.query("DELETE FROM friendships WHERE (requester_id=$1 AND recipient_id=$2) OR (requester_id=$2 AND recipient_id=$1)",[playerId,target]);
+      return {ok:true};
+    });
   }
   async party(playerId: string) {
     const own = (
