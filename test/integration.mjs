@@ -866,8 +866,11 @@ test(
         const other=await post("/v1/auth/register",{email:"other@example.test",password:"another password 24!"});
         assert.notEqual(other.playerId,second.playerId);assert.equal((await req("/v1/me",{auth:other})).coins,1000);
         await post("/v1/shop/select",{itemId:"emote:wave"},other,403);
-        await post("/v1/auth/logout",{refreshToken:second.refreshToken},second);
-        await req("/v1/me",{auth:second,status:401});await post("/v1/auth/refresh",{refreshToken:second.refreshToken},null,401);
+        const rotated=await post("/v1/auth/refresh",{refreshToken:second.refreshToken});
+        await post("/v1/auth/logout",{refreshToken:rotated.refreshToken},rotated);
+        await req("/v1/me",{auth:rotated,status:401});
+        await post("/v1/auth/refresh",{refreshToken:rotated.refreshToken},null,401);
+        await post("/v1/auth/refresh",{refreshToken:second.refreshToken},null,401);
         const again=await post("/v1/auth/login",credentials);assert.equal(again.playerId,guest.playerId);
         const inspect=new pg.Pool({connectionString:dbUrl.toString()});
         try{const row=(await inspect.query("SELECT password_hash FROM account_identities WHERE player_id=$1",[again.playerId])).rows[0];assert.match(row.password_hash,/^scrypt1:/);assert.ok(!row.password_hash.includes(credentials.password));}finally{await inspect.end();}
