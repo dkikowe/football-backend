@@ -1,5 +1,6 @@
 import { revokeApple } from "./apple";
 import { initializeInventory, starters, requireOwned, questState } from "./economy";
+import { Room } from "./types";
 import { Injectable } from "@nestjs/common";
 import { Request } from "express";
 import { db, redis, key, get, set, transaction } from "./db";
@@ -177,6 +178,18 @@ export class AuthService {
     const byId = new Map(rows.map(r => [r.id, r]));
     return this.summarizeRows(ids.map(id => byId.get(id)).filter(Boolean));
   }
+  async activeRoomCode(playerId:string) {
+    const pointer=key("active-room:"+playerId), code=await redis.get(pointer);
+    if(!code)return "";
+    const room=await get<Room>("room:"+code);
+    // Builds before room-return support cannot return after a match. Also repairs
+    // their reservations left during the first deployment of persistent rooms.
+    if(!room || !room.members.includes(playerId) || (!room.supportsRoomReturn && (room.matchId || room.previousMatchId))) {
+      await redis.eval('if redis.call("GET",KEYS[1])==ARGV[1] then return redis.call("DEL",KEYS[1]) end return 0',{keys:[pointer],arguments:[code]});
+      return "";
+    }
+    return code;
+  }
   async me(playerId: string) {
     const r = await db.query(
       "SELECT p.*,r.rating,s.matches,s.wins,s.losses,s.draws,s.goals,s.assists,s.mvp_count,b.coins,b.gems,b.xp FROM players p JOIN ratings r ON r.player_id=p.id JOIN player_stats s ON s.player_id=p.id JOIN balances b ON b.player_id=p.id WHERE p.id=$1",
@@ -188,7 +201,7 @@ export class AuthService {
       ...(await this.summary(row)),
       activeMatchId: (await redis.get(key("active-match:" + playerId))) || "",
       activeQueueId: (await redis.get(key("active-queue:" + playerId))) || "",
-      activeRoomCode: (await redis.get(key("active-room:" + playerId))) || "",
+      activeRoomCode: await this.activeRoomCode(playerId),
       level: 1 + Math.floor(row.xp / 500),
       coins: row.coins,
       gems: row.gems,

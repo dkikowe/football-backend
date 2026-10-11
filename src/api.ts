@@ -103,7 +103,7 @@ export class ApiController {
     const pid=await this.auth.auth(req), b=parse(strict({refreshToken:secret}),body);
     return lock(async()=>{
       await this.auth.available([pid]);
-      if(await redis.exists(key('active-room:'+pid)))fail(409,'IN_ROOM','Leave your private room before signing out.');
+      if(await this.auth.activeRoomCode(pid))fail(409,'IN_ROOM','Leave your private room before signing out.');
       await db.query('UPDATE guest_refresh SET revoked_at=now() WHERE player_id=$1 AND family_id=(SELECT family_id FROM guest_refresh WHERE token_hash=$2 AND player_id=$1)',[pid,hash(b.refreshToken)]);
       await redis.del([key('refresh-retry:'+hash(b.refreshToken)),key('access:'+hash(req.headers.authorization!.slice(7)))]);
       return {ok:true};
@@ -270,16 +270,16 @@ export class ApiController {
     @Body() body: unknown,
   ) {
     const pid = await this.auth.auth(req),
-      b = parse(strict({ region, characterId: character.optional(), duel: z.boolean().optional() }), body);
-    return lock(() => this.matches.createRoom(pid, b.region, b.characterId, b.duel));
+      b = parse(strict({ region, characterId: character.optional(), duel: z.boolean().optional(), supportsRoomReturn:z.boolean().optional() }), body);
+    return lock(() => this.matches.createRoom(pid, b.region, b.characterId, b.duel, b.supportsRoomReturn));
   }
   @Post("v1/rooms/join") async joinRoom(
     @Req() req: Request,
     @Body() body: unknown,
   ) {
     const pid = await this.auth.auth(req),
-      b = parse(strict({ code, characterId: character, supportsDuel: z.boolean().optional() }), body);
-    return lock(() => this.matches.joinRoom(pid, b.code, b.characterId, b.supportsDuel));
+      b = parse(strict({ code, characterId: character, supportsDuel: z.boolean().optional(), supportsRoomReturn:z.boolean().optional() }), body);
+    return lock(() => this.matches.joinRoom(pid, b.code, b.characterId, b.supportsDuel, b.supportsRoomReturn));
   }
   @Get("v1/rooms/invites") async roomInvites(@Req() req:Request) {
     return this.matches.roomInvites(await this.auth.auth(req));
@@ -289,8 +289,8 @@ export class ApiController {
     return lock(()=>this.matches.inviteRoom(pid,parse(code,roomCode),b.playerId));
   }
   @Post("v1/rooms/:code/invites/respond") async respondRoomInvite(@Req() req:Request,@Param("code") roomCode:string,@Body() body:unknown) {
-    const pid=await this.auth.auth(req),b=parse(strict({accept:z.boolean(),characterId:character,supportsDuel:z.boolean().optional()}),body);
-    return lock(()=>this.matches.respondRoomInvite(pid,parse(code,roomCode),b.accept,b.characterId,b.supportsDuel??false));
+    const pid=await this.auth.auth(req),b=parse(strict({accept:z.boolean(),characterId:character,supportsDuel:z.boolean().optional(),supportsRoomReturn:z.boolean().optional()}),body);
+    return lock(()=>this.matches.respondRoomInvite(pid,parse(code,roomCode),b.accept,b.characterId,b.supportsDuel??false,b.supportsRoomReturn??false));
   }
   @Post("v1/rooms/:code/return") async returnRoom(@Req() req:Request,@Param("code") roomCode:string) {
     const pid=await this.auth.auth(req);

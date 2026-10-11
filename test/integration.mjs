@@ -649,7 +649,7 @@ test(
           await ready();
           const r = await post(
             "/v1/rooms",
-            { region: "local", characterId: "kai" },
+            { region: "local", characterId: "kai", supportsRoomReturn:true },
             users[6],
           );
           await post("/v1/rooms/"+r.code+"/invites",{playerId:users[7].playerId},users[6],403);
@@ -657,11 +657,13 @@ test(
           await post("/v1/friends/requests/"+users[6].playerId+"/respond",{accept:true},users[7]);
           await post("/v1/rooms/"+r.code+"/invites",{playerId:users[7].playerId},users[6]);
           assert.equal((await req("/v1/rooms/invites",{auth:users[7]})).invites[0].code,r.code);
-          await post("/v1/rooms/"+r.code+"/invites/respond",{accept:false,characterId:"leo",supportsDuel:true},users[7]);
+          await post("/v1/rooms/"+r.code+"/invites/respond",{accept:false,characterId:"leo",supportsDuel:true,supportsRoomReturn:true},users[7]);
           assert.equal((await req("/v1/rooms/invites",{auth:users[7]})).invites.length,0);
-          await post("/v1/rooms/"+r.code+"/invites/respond",{accept:true,characterId:"leo",supportsDuel:true},users[7],403);
+          await post("/v1/rooms/"+r.code+"/invites/respond",{accept:true,characterId:"leo",supportsDuel:true,supportsRoomReturn:true},users[7],403);
           await post("/v1/rooms/"+r.code+"/invites",{playerId:users[7].playerId},users[6]);
-          await post("/v1/rooms/"+r.code+"/invites/respond",{accept:true,characterId:"leo",supportsDuel:true},users[7]);
+          const outdated=await post("/v1/rooms/"+r.code+"/invites/respond",{accept:true,characterId:"leo",supportsDuel:true},users[7],409);
+          assert.equal(outdated.code,"UPDATE_REQUIRED");
+          await post("/v1/rooms/"+r.code+"/invites/respond",{accept:true,characterId:"leo",supportsDuel:true,supportsRoomReturn:true},users[7]);
           assert.equal((await req("/v1/me",{auth:users[7]})).activeRoomCode,r.code);
           await post("/v1/matchmaking",{region:"local",rttMs:30,characterId:"leo"},users[7],409);
           await post("/v1/rooms/" + r.code + "/start", {}, users[7], 403);
@@ -699,12 +701,14 @@ test(
       await t.test("private 1v1 excludes empty slots, enforces two players and compatible clients/servers", async () => {
         const duelUsers = [await post("/v1/auth/guest", {nickname:"DUEL A", characterId:"kai"}), await post("/v1/auth/guest", {nickname:"DUEL B", characterId:"leo"})];
         await register(); // Older servers must never receive a duel allocation.
-        const r = await post("/v1/rooms", {region:"local",characterId:"kai",duel:true}, duelUsers[0]);
+        const r = await post("/v1/rooms", {region:"local",characterId:"kai",duel:true,supportsRoomReturn:true}, duelUsers[0]);
         assert.equal(r.duel, true);
         await post("/v1/rooms/"+r.code+"/start", {}, duelUsers[0], 409);
-        await post("/v1/rooms/join", {code:r.code,characterId:"leo"}, duelUsers[1], 409);
-        await post("/v1/rooms/join", {code:r.code,characterId:"leo",supportsDuel:true}, duelUsers[1]);
-        await post("/v1/rooms/join", {code:r.code,characterId:"kai",supportsDuel:true}, users[5], 409);
+        assert.equal(r.supportsRoomReturn,true);
+        assert.equal((await post("/v1/rooms/join", {code:r.code,characterId:"leo",supportsDuel:true}, duelUsers[1], 409)).code,"UPDATE_REQUIRED");
+        await post("/v1/rooms/join", {code:r.code,characterId:"leo",supportsRoomReturn:true}, duelUsers[1], 409);
+        await post("/v1/rooms/join", {code:r.code,characterId:"leo",supportsDuel:true,supportsRoomReturn:true}, duelUsers[1]);
+        await post("/v1/rooms/join", {code:r.code,characterId:"kai",supportsDuel:true,supportsRoomReturn:true}, users[5], 409);
         await post("/v1/rooms/"+r.code+"/start", {}, duelUsers[1], 403);
         await post("/v1/rooms/"+r.code+"/start", {}, duelUsers[0], 503);
         await internal("/internal/servers/register", {serverId:"test-1",region:"local",address:"127.0.0.1",port:7777,buildId:"football-ngo-2-duel"});
@@ -739,6 +743,37 @@ test(
         assert.equal((await req("/v1/me",{auth:duelUsers[1]})).activeRoomCode,"");
         await post("/v1/rooms/"+r.code+"/start",{},duelUsers[0],409);
         await req("/v1/rooms/"+r.code,{method:"DELETE",auth:duelUsers[0]});
+      });
+      await t.test("legacy private clients release room reservations and replay without an update", async()=>{
+        const legacy=[await post("/v1/auth/guest",{nickname:"LEGACY ROOM A",characterId:"kai"}),await post("/v1/auth/guest",{nickname:"LEGACY ROOM B",characterId:"leo"})];
+        await register();
+        const r=await post("/v1/rooms",{region:"local",characterId:"kai"},legacy[0]);
+        assert.equal(r.supportsRoomReturn,false);
+        const joined=await post("/v1/rooms/join",{code:r.code,characterId:"leo"},legacy[1]);
+        assert.equal(joined.supportsRoomReturn,false);
+        const started=await post("/v1/rooms/"+r.code+"/start",{},legacy[0]);
+        assert.ok(started.matchId);
+        assert.equal((await req("/v1/me",{auth:legacy[0]})).activeRoomCode,"");
+        assert.equal((await req("/v1/me",{auth:legacy[1]})).activeRoomCode,"");
+        const assignment=await ready();
+        await internal("/internal/matches/"+started.matchId+"/results",{
+          serverId:"test-1",matchSecret:assignment.matchSecret,blueScore:0,redScore:0,durationSeconds:90,
+          participants:assignment.slots.filter(x=>x.playerId).map(x=>({playerId:x.playerId,slot:x.slot,goals:0,assists:0,shots:0,passes:0,tackles:0,possessionSeconds:0,isMvp:false}))
+        });
+        assert.equal((await req("/v1/matches/"+started.matchId+"/results",{auth:legacy[0]})).state,"FINISHED");
+        await internal("/internal/servers/test-1/shutdown",{});servers.delete("test-1");
+        assert.equal((await post("/v1/rooms/"+r.code+"/return",{},legacy[0],409)).code,"ROOM_RETURN_UNAVAILABLE");
+        // Reproduce a room pointer retained by the brief pre-capability deployment.
+        await redis.set(prefix+"active-room:"+legacy[0].playerId,r.code,{EX:300});
+        const q=await post("/v1/matchmaking",{region:"local",rttMs:30,characterId:"kai"},legacy[0]);
+        await req("/v1/matchmaking/"+q.queueId,{method:"DELETE",auth:legacy[0]});
+        const next=await post("/v1/rooms",{region:"local",characterId:"kai",supportsRoomReturn:true},legacy[0]);
+        assert.notEqual(next.code,r.code);assert.equal(next.supportsRoomReturn,true);
+        assert.equal((await post("/v1/rooms",{region:"local",characterId:"kai"},legacy[0],409)).code,"UPDATE_REQUIRED");
+        // Replaying the old terminal allocation cannot erase the new room pointer.
+        await req("/v1/matches/"+started.matchId+"/join",{auth:legacy[0]});
+        assert.equal((await req("/v1/me",{auth:legacy[0]})).activeRoomCode,next.code);
+        await req("/v1/rooms/"+next.code,{method:"DELETE",auth:legacy[0]});
       });
       await t.test(
         "queue cancel and capacity timeout are finite; offline local state never consulted",

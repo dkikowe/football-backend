@@ -54,6 +54,7 @@ export interface Allocation {
   queueIds: string[];
 }
 export interface Room {
+  supportsRoomReturn?: boolean;
   returnedPlayerIds?: string[];
   previousMatchId?: string;
   duel?: boolean;
