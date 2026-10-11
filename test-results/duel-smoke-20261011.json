@@ -1,0 +1,112 @@
+{
+  "startedUtc": "2026-10-11T14:06:10.928Z",
+  "apiOrigin": "https://api-production-faa76.up.railway.app",
+  "region": "us-east",
+  "fixture": {
+    "humanClients": 2,
+    "serverBots": 0,
+    "localServerProcesses": 0,
+    "input": "one stationary client, one ordinary movement/shoot/tackle client; disconnect/reconnect exercised",
+    "serverRules": "unchanged release match"
+  },
+  "checks": [
+    {
+      "name": "real public dedicated allocated through private-room flow",
+      "passed": true,
+      "atUtc": "2026-10-11T14:06:15.913Z"
+    },
+    {
+      "name": "allocation contains two humans, zero bots and public DTLS trust",
+      "passed": true,
+      "atUtc": "2026-10-11T14:06:16.551Z"
+    },
+    {
+      "name": "both actual Mac clients receive public authoritative snapshots over DTLS",
+      "passed": true,
+      "atUtc": "2026-10-11T14:06:21.068Z"
+    },
+    {
+      "name": "both clients observe advancing match ticks",
+      "passed": true,
+      "atUtc": "2026-10-11T14:06:24.076Z"
+    },
+    {
+      "name": "opponent reconnects to the original duel slot",
+      "passed": true,
+      "atUtc": "2026-10-11T14:06:34.727Z"
+    },
+    {
+      "name": "public dedicated commits a normal match result",
+      "passed": true,
+      "atUtc": "2026-10-11T14:06:46.888Z"
+    },
+    {
+      "name": "both accounts agree on committed result and persisted history",
+      "passed": true,
+      "atUtc": "2026-10-11T14:06:48.614Z"
+    },
+    {
+      "name": "both clients saw zero server bots throughout active gameplay",
+      "passed": true,
+      "atUtc": "2026-10-11T14:06:48.622Z"
+    },
+    {
+      "name": "both clients agree on time-aligned public ball and score snapshots",
+      "passed": true,
+      "atUtc": "2026-10-11T14:06:48.624Z"
+    },
+    {
+      "name": "no client runtime exception markers",
+      "passed": true,
+      "atUtc": "2026-10-11T14:06:48.626Z"
+    }
+  ],
+  "artifacts": "/Users/dkikowe/Desktop/football-backend/.local/duel-smoke-EdfVWU",
+  "endpoint": {
+    "address": "167.172.156.89",
+    "port": 7777,
+    "serverName": "football-game",
+    "caSha256": "8b07dd3507dc7c9a79cc2e4eb77a4cd8b195710c8e7f39c0db15e032f77bdc73",
+    "slots": [
+      0,
+      3
+    ]
+  },
+  "result": {
+    "matchId": "e20c919c-0739-47fb-a7a2-5bf9c258985e",
+    "blueScore": 0,
+    "redScore": 3,
+    "durationSeconds": 25.331623,
+    "humanParticipants": 2,
+    "participants": 2
+  },
+  "clients": [
+    {
+      "slot": 0,
+      "samples": 28,
+      "botSamples": 17,
+      "maxBots": 0,
+      "meanRttMs": 209,
+      "maxLossPercent": 55.6,
+      "medianTickRate": 29.91026919242315
+    },
+    {
+      "slot": 3,
+      "samples": 14,
+      "botSamples": 6,
+      "maxBots": 0,
+      "meanRttMs": 428,
+      "maxLossPercent": 0.8,
+      "medianTickRate": 30.014292520247885
+    }
+  ],
+  "network": {
+    "comparedSnapshotPairs": 7,
+    "exactTickPairs": 0,
+    "maxTimeAlignedBallDifference": 0.48,
+    "meanAppRttMs": 296,
+    "maxObservedLossPercent": 55.6
+  },
+  "passed": true,
+  "finishedUtc": "2026-10-11T14:06:50.493Z"
+}

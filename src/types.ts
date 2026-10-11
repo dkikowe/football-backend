@@ -5,6 +5,7 @@ export interface Slot {
   nickname: string;
   characterId: string;
   isBot: boolean;
+  isEmpty?: boolean;
 }
 export interface Queue {
   queueId: string;
@@ -52,6 +53,7 @@ export interface Allocation {
   queueIds: string[];
 }
 export interface Room {
+  duel?: boolean;
   code: string;
   leaderId: string;
   region: string;

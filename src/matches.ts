@@ -166,12 +166,13 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
     await redis.sRem(key("servers"), serverId);
     return { ok: true };
   }
-  private async availableServer(region: string) {
+  private async availableServer(region: string, duel = false) {
     for (const serverId of await redis.sMembers(key("servers"))) {
       const server = await get<Server>("server:" + serverId);
       if (
         server &&
         server.state === "IDLE" &&
+        (!duel || server.buildId === "football-ngo-2-duel") &&
         server.region === region &&
         !server.matchId &&
         Date.now() - server.lastSeen < config.SERVER_TIMEOUT_SECONDS * 1000
@@ -185,6 +186,7 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
     teams: string[][],
     mode: string,
     queues: Queue[] = [],
+    duel = false,
   ) {
     const matchId = id(),
       slots: Slot[] = [],
@@ -199,9 +201,10 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
           slot,
           team,
           playerId: p?.playerId || "",
-          nickname: p?.nickname || `BOT ${slot + 1}`,
+          nickname: p?.nickname || (duel ? "EMPTY" : `BOT ${slot + 1}`),
           characterId: p?.characterId || characters[slot],
-          isBot: !p,
+          isBot: !p && !duel,
+          isEmpty: !p && duel,
         });
         if (p) {
           const reconnectToken = token(),
@@ -247,7 +250,7 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
         "INSERT INTO matches(id,server_id,region,mode,state) VALUES($1,$2,$3,$4,'STARTING')",
         [matchId, server.serverId, server.region, mode],
       );
-      for (const slot of slots)
+      for (const slot of slots.filter(s => !s.isEmpty))
         await c.query(
           "INSERT INTO match_participants(match_id,slot,team,player_id,character_id,nickname) VALUES($1,$2,$3,$4,$5,$6)",
           [
@@ -520,7 +523,7 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
       await redis.del(key("active-match:" + playerId));
     return { ok: true };
   }
-  async createRoom(playerId: string, region: string, characterId?: string) {
+  async createRoom(playerId: string, region: string, characterId?: string, duel = false) {
     this.region(region);
     await this.auth.available([playerId]);
     const old = await redis.get(key("active-room:" + playerId));
@@ -542,6 +545,7 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
         .toUpperCase();
     } while (await redis.exists(key("room:" + code)));
     const room: Room = {
+      duel,
       code,
       leaderId: playerId,
       region,
@@ -554,17 +558,18 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
     await redis.set(key("active-room:" + playerId), code, { EX: 1800 });
     return this.roomStatus(playerId, code);
   }
-  async joinRoom(playerId: string, code: string, characterId: string) {
+  async joinRoom(playerId: string, code: string, characterId: string, supportsDuel = false) {
     const room = await get<Room>("room:" + code);
     if (!room) fail(404, "NOT_FOUND", "Room not found.");
+    if (room.duel && !supportsDuel) fail(409, "UPDATE_REQUIRED", "Update the game to join a 1v1 room.");
     if (room.state !== "READY")
       fail(409, "ROOM_STARTED", "Room has already started.");
     if (room.members.includes(playerId)) return this.roomStatus(playerId, code);
     await this.auth.available([playerId]);
     if (await redis.exists(key("active-room:" + playerId)))
       fail(409, "ALREADY_IN_ROOM", "Leave your current room first.");
-    if (room.members.length >= 6)
-      fail(409, "ROOM_FULL", "Room already has six players.");
+    if (room.members.length >= (room.duel ? 2 : 6))
+      fail(409, "ROOM_FULL", room.duel ? "1v1 room already has two players." : "Room already has six players.");
     room.members.push(playerId);
     await db.query("UPDATE players SET character_id=$2 WHERE id=$1", [
       playerId,
@@ -580,6 +585,7 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
     if (!r.members.includes(playerId))
       fail(403, "FORBIDDEN", "Join room first.");
     return {
+      duel: r.duel ?? false,
       code: r.code,
       leaderId: r.leaderId,
       region: r.region,
@@ -594,13 +600,15 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
       fail(403, "FORBIDDEN", "Only room leader can start.");
     if (room.matchId) return this.roomStatus(playerId, code);
     await this.auth.available(room.members);
-    const server = await this.availableServer(room.region);
+    if (room.duel && room.members.length !== 2)
+      fail(409, "NEED_OPPONENT", "Invite one friend before starting 1v1.");
+    const server = await this.availableServer(room.region, room.duel);
     if (!server)
       fail(503, "NO_SERVER", "No server available; try again shortly.");
     const teams: string[][] = [[], []];
     for (let i = 0; i < room.members.length; i++)
       teams[i % 2].push(room.members[i]);
-    const a = await this.allocate(server, teams, "PRIVATE");
+    const a = await this.allocate(server, teams, room.duel ? "PRIVATE_1V1" : "PRIVATE", [], room.duel);
     room.matchId = a.matchId;
     room.state = "CONNECTING";
     await set("room:" + code, room, config.MATCH_TIMEOUT_SECONDS + 300);
@@ -680,7 +688,7 @@ export class MatchesService implements OnModuleInit, OnModuleDestroy {
     const a = await this.trusted(matchId, input.serverId, input.matchSecret);
     if (a.state === "FAILED")
       fail(409, "MATCH_FAILED", "Interrupted match cannot award a result.");
-    const humans = a.slots.filter((x) => !x.isBot);
+    const humans = a.slots.filter((x) => !x.isBot && !x.isEmpty);
     const participants = input.participants
       .filter((x: any) => x.playerId)
       .sort((x: any, y: any) => x.slot - y.slot);

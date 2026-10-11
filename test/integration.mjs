@@ -652,6 +652,31 @@ test(
           );
         },
       );
+      await t.test("private 1v1 excludes empty slots, enforces two players and compatible clients/servers", async () => {
+        const duelUsers = [await post("/v1/auth/guest", {nickname:"DUEL A", characterId:"kai"}), await post("/v1/auth/guest", {nickname:"DUEL B", characterId:"max"})];
+        await register(); // Older servers must never receive a duel allocation.
+        const r = await post("/v1/rooms", {region:"local",characterId:"kai",duel:true}, duelUsers[0]);
+        assert.equal(r.duel, true);
+        await post("/v1/rooms/"+r.code+"/start", {}, duelUsers[0], 409);
+        await post("/v1/rooms/join", {code:r.code,characterId:"max"}, duelUsers[1], 409);
+        await post("/v1/rooms/join", {code:r.code,characterId:"max",supportsDuel:true}, duelUsers[1]);
+        await post("/v1/rooms/join", {code:r.code,characterId:"kai",supportsDuel:true}, users[5], 409);
+        await post("/v1/rooms/"+r.code+"/start", {}, duelUsers[1], 403);
+        await post("/v1/rooms/"+r.code+"/start", {}, duelUsers[0], 503);
+        await internal("/internal/servers/register", {serverId:"test-1",region:"local",address:"127.0.0.1",port:7777,buildId:"football-ngo-2-duel"});
+        const started=await post("/v1/rooms/"+r.code+"/start", {}, duelUsers[0]);
+        const c=await req("/v1/matches/"+started.matchId+"/join", {auth:duelUsers[1]});
+        assert.equal(c.slots.filter(x=>x.isBot).length,0);
+        assert.equal(c.slots.filter(x=>x.isEmpty).length,4);
+        assert.deepEqual(c.slots.filter(x=>x.playerId).map(x=>x.slot),[0,3]);
+        const assignment=await ready();
+        await internal("/internal/matches/"+started.matchId+"/results", {
+          serverId:"test-1",matchSecret:assignment.matchSecret,blueScore:1,redScore:0,durationSeconds:90,
+          participants:c.slots.filter(x=>x.playerId).map(x=>({playerId:x.playerId,slot:x.slot,goals:x.slot===0?1:0,assists:0,shots:1,passes:0,tackles:0,possessionSeconds:10,isMvp:x.slot===0}))
+        });
+        assert.equal((await req("/v1/matches/"+started.matchId+"/results", {auth:duelUsers[0]})).state,"FINISHED");
+        await internal("/internal/servers/test-1/shutdown", {});servers.delete("test-1");
+      });
       await t.test(
         "queue cancel and capacity timeout are finite; offline local state never consulted",
         async () => {

@@ -218,16 +218,16 @@ export class ApiController {
     @Body() body: unknown,
   ) {
     const pid = await this.auth.auth(req),
-      b = parse(strict({ region, characterId: character.optional() }), body);
-    return lock(() => this.matches.createRoom(pid, b.region, b.characterId));
+      b = parse(strict({ region, characterId: character.optional(), duel: z.boolean().optional() }), body);
+    return lock(() => this.matches.createRoom(pid, b.region, b.characterId, b.duel));
   }
   @Post("v1/rooms/join") async joinRoom(
     @Req() req: Request,
     @Body() body: unknown,
   ) {
     const pid = await this.auth.auth(req),
-      b = parse(strict({ code, characterId: character }), body);
-    return lock(() => this.matches.joinRoom(pid, b.code, b.characterId));
+      b = parse(strict({ code, characterId: character, supportsDuel: z.boolean().optional() }), body);
+    return lock(() => this.matches.joinRoom(pid, b.code, b.characterId, b.supportsDuel));
   }
   @Get("v1/rooms/:code") async room(
     @Req() req: Request,
