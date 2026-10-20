@@ -37,15 +37,18 @@ export const quests=[
  {id:"welcome",metric:"visit",target:1,coins:75,xp:25,weekly:false},
  {id:"match",metric:"matches",target:1,coins:120,xp:80,weekly:false},
  {id:"goals",metric:"goals",target:2,coins:150,xp:100,weekly:false},
+ {id:"daily_assist",metric:"assists",target:1,coins:80,xp:60,weekly:false},
  {id:"five",metric:"matches",target:5,coins:500,xp:300,weekly:true},
  {id:"wins",metric:"wins",target:3,coins:600,xp:400,weekly:true},
+ {id:"weekly_goals",metric:"goals",target:8,coins:200,xp:160,weekly:true},
+ {id:"weekly_assists",metric:"assists",target:5,coins:200,xp:160,weekly:true},
 ];
 export async function questState(playerId:string, c:PoolClient|typeof db=db) {
   const rows=[];
   for(const q of quests){
     const period=q.weekly?"week":"day";
     const data=(await c.query(`SELECT (date_trunc('${period}',now() AT TIME ZONE 'UTC'))::date::text period,
-      count(*)::int matches,coalesce(sum(p.goals),0)::int goals,
+      count(*)::int matches,coalesce(sum(p.goals),0)::int goals,coalesce(sum(p.assists),0)::int assists,
       count(*) FILTER (WHERE (p.team=0 AND m.blue_score>m.red_score) OR (p.team=1 AND m.red_score>m.blue_score))::int wins
       FROM matches m JOIN match_participants p ON p.match_id=m.id WHERE p.player_id=$1 AND m.state='FINISHED'
       AND m.finished_at>=date_trunc('${period}',now() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'`,[playerId])).rows[0];
