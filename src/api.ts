@@ -1,6 +1,8 @@
 import { appleChallenge, verifyApple, appleConfigured } from "./apple";
 import { attachIdentity, emailLogin, passwordHash, limitIdentity } from "./accounts";
 import { buy, selectItem, claimQuest } from "./economy";
+import { currencyCatalog, fulfillApplePurchase, appleStoreNotification } from "./apple-store";
+import { exchangeCoins } from "./currency-store";
 import {
   Controller,
   Get,
@@ -117,6 +119,22 @@ export class ApiController {
   @Post("v1/shop/buy") async purchase(@Req() req:Request,@Body() body:unknown){
     const pid=await this.auth.auth(req),b=parse(strict({itemId:z.string().max(80)}),body);
     await buy(pid,b.itemId);return this.auth.me(pid);
+  }
+  @Get("v1/store/catalog") async storeCatalog(@Req() req:Request) {
+    await this.auth.auth(req); return currencyCatalog();
+  }
+  @Post("v1/store/exchange") async exchange(@Req() req:Request,@Body() body:unknown) {
+    const pid=await this.auth.auth(req),b=parse(strict({packId:z.enum(["coins.1000","coins.5000"]),requestId:uuid}),body);
+    await exchangeCoins(pid,b.packId,b.requestId);return this.auth.me(pid);
+  }
+  @Post("v1/store/apple/fulfill") async applePurchase(@Req() req:Request,@Body() body:unknown) {
+    const pid=await this.auth.auth(req),b=parse(strict({signedTransaction:z.string().min(100).max(24000)}),body);
+    const result=await fulfillApplePurchase(pid,b.signedTransaction);return {...result,profile:await this.auth.me(pid)};
+  }
+  @Post("v1/store/apple/notifications") async appleNotification(@Body() body:unknown) {
+    // No bearer token: Apple's verified JWS is the authentication credential.
+    const b=parse(strict({signedPayload:z.string().min(100).max(30000)}),body);
+    return appleStoreNotification(b.signedPayload);
   }
   @Post("v1/shop/select") async select(@Req() req:Request,@Body() body:unknown){
     const pid=await this.auth.auth(req),b=parse(strict({itemId:z.string().max(80)}),body);

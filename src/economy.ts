@@ -22,6 +22,7 @@ export async function buy(playerId:string,itemId:string) {
     if(!balance)fail(401,"UNAUTHENTICATED","Sign in again.");
     if((await c.query("SELECT 1 FROM inventory WHERE player_id=$1 AND item_id=$2",[playerId,itemId])).rowCount)return;
     const currency=item.gems?"gems":"coins";
+    if(item.gems&&balance.paid_gems_debt>0)fail(409,"PURCHASE_ADJUSTMENT_PENDING","A refunded purchase requires a wallet adjustment. Contact support.");
     if(balance[currency]<item.price)fail(409,"INSUFFICIENT_FUNDS",`Not enough ${currency}.`);
     await c.query(`UPDATE balances SET ${currency}=${currency}-$2 WHERE player_id=$1`,[playerId,item.price]);
     await c.query("INSERT INTO inventory(player_id,item_id) VALUES($1,$2)",[playerId,itemId]);
