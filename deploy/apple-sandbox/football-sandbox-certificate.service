@@ -1,0 +1,7 @@
+[Unit]
+Description=Renew isolated Football Apple Sandbox DTLS certificate
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/renew-football-sandbox-certificate
+UMask=0077
